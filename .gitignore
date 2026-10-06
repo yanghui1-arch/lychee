@@ -8,7 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
+/build/bin/
 develop-eggs/
 dist/
 downloads/
@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Wails / frontend development
+node_modules/
+/frontend/dist/
+/frontend/package.json.md5

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "lychee",
+  "outputfilename": "lychee",
+  "frontend:install": "bun install --frozen-lockfile",
+  "frontend:build": "bun run build",
+  "frontend:dev:watcher": "bun run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "dass90",
+    "email": "3053034939@qq.com"
+  }
+}
