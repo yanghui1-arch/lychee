@@ -38,16 +38,16 @@ export function WorkspaceHeader() {
           draggable={false}
         />
         <TabsTrigger className="t-tab" value="translate">
-          翻译
+          文译
+        </TabsTrigger>
+        <TabsTrigger className="t-tab" value="image">
+          图译
         </TabsTrigger>
         <TabsTrigger className="t-tab" value="interpret">
           同传
         </TabsTrigger>
-        <TabsTrigger className="t-tab" value="manual">
-          手册
-        </TabsTrigger>
-        <TabsTrigger className="t-tab" value="settings">
-          设置
+        <TabsTrigger className="t-tab" value="subtitle">
+          字幕
         </TabsTrigger>
         <TabsIndicator className="t-tabs-pill" aria-hidden="true" />
       </TabsList>

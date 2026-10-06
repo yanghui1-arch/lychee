@@ -190,16 +190,16 @@ export function TranslatorWorkspace() {
             </Button>
           </div>
         )}
-        {page === 'settings' && (
-          <section className="page-placeholder" aria-label="设置">
-            <h1>设置</h1>
-            <p>设置内容将在这里显示。</p>
+        {page === 'image' && (
+          <section className="page-placeholder" aria-label="图译">
+            <h1>图译</h1>
+            <p>图片翻译内容将在这里显示。</p>
           </section>
         )}
-        {page === 'manual' && (
-          <section className="page-placeholder" aria-label="手册">
-            <h1>手册</h1>
-            <p>使用手册内容将在这里显示。</p>
+        {page === 'subtitle' && (
+          <section className="page-placeholder" aria-label="字幕">
+            <h1>字幕</h1>
+            <p>字幕内容将在这里显示。</p>
           </section>
         )}
       </TabsContent>

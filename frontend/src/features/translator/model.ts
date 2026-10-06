@@ -19,7 +19,7 @@ export const SOURCE_LANGUAGES = [
   ...LANGUAGES,
 ] as const
 export type SourceLanguage = (typeof SOURCE_LANGUAGES)[number]['value']
-export type Page = 'translate' | 'interpret' | 'settings' | 'manual'
+export type Page = 'translate' | 'image' | 'interpret' | 'subtitle'
 export type Collection = 'history' | 'favorites'
 export type Entry = {
   id: string
