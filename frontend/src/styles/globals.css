@@ -299,6 +299,15 @@ a:focus-visible {
   font-size: var(--editor-font-size);
   line-height: 1.6;
 }
+.result-text p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.result-text[data-status='waiting'],
+.result-text[data-status='loading'] {
+  color: var(--color-muted-foreground);
+}
 .result-footer {
   height: 50px;
   flex-shrink: 0;

@@ -14,9 +14,11 @@ const particles = Array.from({ length: 8 }, (_, index) => {
 export function LikeButton({
   liked,
   onLikedChange,
+  disabled = false,
 }: {
   liked: boolean
   onLikedChange: (liked: boolean) => void
+  disabled?: boolean
 }) {
   return (
     <Toggle
@@ -25,6 +27,7 @@ export function LikeButton({
       data-liked={liked}
       pressed={liked}
       onPressedChange={onLikedChange}
+      disabled={disabled}
       aria-label="喜欢译文"
       title={liked ? '取消喜欢' : '喜欢译文'}
     >

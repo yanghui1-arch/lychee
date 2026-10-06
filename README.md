@@ -9,9 +9,30 @@
 - 翻译 / 同传 / 手册 / 设置导航；双栏编辑区与原文、译文语言选择。
 - 5,000 字输入限制、动态字数、复制与译文喜欢 / 取消喜欢；两栏间的细线双向箭头可交换原文与译文语言。
 - 设置、手册页目前显示内容占位；文档与历史页面不再提供入口。
-- 输入失焦或按 Ctrl / Command + Enter 保存原文。
+- 原文停止输入 600 毫秒后自动翻译；中文输入法组词期间不请求。修改内容、切换语言或离开翻译页会取消旧请求，旧译文不会覆盖新内容。
 - 状态在本机持久化，字体随应用打包；窗口固定为 860 × 600 逻辑像素，禁用调整大小与最大化。Windows / Linux 在右上角显示最小化、关闭线条按钮，macOS 在左上角显示关闭、最小化圆点按钮；点击调用 Wails 窗口接口，标题栏空白区域可拖动窗口。
-- 右侧始终显示「翻译结果在这里」。同传复用编辑工作区；尚未接入翻译、OCR 或语音服务。
+- 翻译页调用真实服务，支持等待、加载、错误和重试，复制按钮复制当前译文。原语言支持自动识别；同传尚未接入语音服务。
+
+## 翻译服务配置
+
+默认服务地址为 `http://127.0.0.1:8000/v1/translate`，使用 POST，发送 `text`、`target_language` 和 `source_language`（默认 `auto`），读取响应的 `translated_text`。界面语言使用标准语言代码，例如 `en-US`、`zh-CN`。
+
+开发时或运行客户端前，可通过环境变量覆盖**完整地址，包含路由**：
+
+```powershell
+$env:LYCHEE_TRANSLATE_URL = 'http://127.0.0.1:8000/v1/translate'
+wails dev
+# 仅预览前端时也使用同一环境变量：
+bun run --cwd frontend dev
+```
+
+发布时把远程默认地址写入客户端，无需用户设置环境变量：
+
+```powershell
+wails build -ldflags '-X main.translationEndpoint=https://api.example.com/v1/translate'
+```
+
+`LYCHEE_TRANSLATE_URL` 的运行时配置优先于打包默认值。地址或路由变更只需修改该配置。桌面端由 Wails 的 Go HTTP 代理发送请求，浏览器开发预览由 Vite 代理发送请求，两者均通过同源 `/api/translate` 访问，避免服务端 CORS 配置差异。请求超时为 30 秒。
 
 ## 开发
 
@@ -45,12 +66,13 @@ Windows 应用输出为 `build/bin/lychee.exe`。`build/` 中的平台配置属�
 
 ```text
 main.go                         Wails 窗口配置与前端资源嵌入
+translation.go                  可配置的翻译服务 HTTP 代理
 build/                          平台资源和打包配置
 frontend/
   src/
     app/                        应用入口与全局行为
     components/ui/              上游 UI 组件与适配
-    features/translator/        工作区布局、记录列表与状态
+    features/translator/        工作区、输入检测、翻译请求与状态
     lib/                        桌面桥接与通用工具
     styles/                     设计变量、布局和动效
   wailsjs/runtime/               Wails 生成的运行时桥接
@@ -60,7 +82,7 @@ frontend/
 工作区状态集中在 `useTranslator.ts`，存储于本机 `lychee.workspace.v1`。
 历史记录最多 20 条，收藏最多 50 条；浏览器预览和桌面运行使用各自的本机存储。
 页面控件直接组合 shadcn 组件，功能目录只承担布局和业务状态。
-后续接入真实服务时，在翻译功能目录内增加服务接口。
+翻译接口集中在 `translation-api.ts`，输入防抖、输入法与请求取消集中在 `useTranslation.ts`；工作区组件只组合控件与显示状态。
 
 ## 组件来源
 

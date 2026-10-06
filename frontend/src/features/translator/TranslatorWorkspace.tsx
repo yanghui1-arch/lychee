@@ -11,10 +11,28 @@ import { LanguageSelect } from './LanguageSelect'
 import { WorkspaceHeader } from './WorkspaceHeader'
 import { MAX_LENGTH, RESULT_TEXT, type Page } from './model'
 import { useTranslator } from './useTranslator'
+import { useTranslation } from './useTranslation'
 
 export function TranslatorWorkspace() {
   const translator = useTranslator()
   const [page, setPage] = useState<Page>('translate')
+  const [composing, setComposing] = useState(false)
+  const translation = useTranslation(
+    {
+      text: translator.text,
+      source_language: translator.source,
+      target_language: translator.target,
+    },
+    page === 'translate',
+    composing,
+  )
+  const resultText = {
+    idle: RESULT_TEXT,
+    waiting: '等待输入完成…',
+    loading: '正在翻译…',
+    success: translation.text,
+    error: translation.error,
+  }[translation.status]
   const toastManager = useToastManager()
   const copied = toastManager.toasts.some(
     (toast) => toast.title === '已复制' && toast.transitionStatus !== 'ending',
@@ -33,7 +51,10 @@ export function TranslatorWorkspace() {
   return (
     <Tabs
       value={page}
-      onValueChange={(value) => setPage(value as Page)}
+      onValueChange={(value) => {
+        setPage(value as Page)
+        setComposing(false)
+      }}
       className="workspace"
       aria-label="荔枝翻译工作区"
       style={
@@ -53,8 +74,12 @@ export function TranslatorWorkspace() {
               <div className="panel-toolbar">
                 <LanguageSelect
                   label="原语言"
+                  autoDetect
                   value={translator.source}
-                  onChange={(source) => translator.patch({ source })}
+                  onChange={(source) => {
+                    translator.patch({ source })
+                    setLiked(false)
+                  }}
                 />
               </div>
               <div className="source-editor">
@@ -73,17 +98,8 @@ export function TranslatorWorkspace() {
                     translator.patch({ text: event.target.value })
                     setLiked(false)
                   }}
-                  onBlur={translator.saveHistory}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === 'Enter' &&
-                      (event.ctrlKey || event.metaKey)
-                    ) {
-                      event.preventDefault()
-                      translator.saveHistory()
-                      notify('原文已保存')
-                    }
-                  }}
+                  onCompositionStart={() => setComposing(true)}
+                  onCompositionEnd={() => setComposing(false)}
                 />
                 <div className="source-footer">
                   <span
@@ -114,18 +130,44 @@ export function TranslatorWorkspace() {
                   }}
                 />
               </div>
-              <p className="result-text">{RESULT_TEXT}</p>
+              <div
+                className="result-text"
+                data-status={translation.status}
+                aria-live="polite"
+                aria-busy={translation.status === 'loading'}
+              >
+                <p>{resultText}</p>
+                {translation.status === 'error' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={translation.retry}
+                  >
+                    重试
+                  </Button>
+                )}
+              </div>
               <div className="result-footer">
                 <Button
                   variant="outline"
                   size="icon"
                   aria-label="复制翻译结果"
                   title="复制翻译结果"
-                  onClick={() => void copy(RESULT_TEXT)}
+                  disabled={
+                    translation.status !== 'success' || !translation.text
+                  }
+                  onClick={() => void copy(translation.text)}
                 >
                   {copied ? <Check /> : <Copy />}
                 </Button>
-                <LikeButton liked={liked} onLikedChange={setLiked} />
+                <LikeButton
+                  liked={translation.status === 'success' && liked}
+                  onLikedChange={setLiked}
+                  disabled={
+                    translation.status !== 'success' || !translation.text
+                  }
+                />
               </div>
             </section>
             <Button
@@ -134,7 +176,9 @@ export function TranslatorWorkspace() {
               className="language-swap text-muted-foreground hover:text-foreground"
               aria-label="交换原文与译文语言"
               title="交换原文与译文语言"
+              disabled={translator.source === 'auto'}
               onClick={() => {
+                if (translator.source === 'auto') return
                 translator.patch({
                   source: translator.target,
                   target: translator.source,

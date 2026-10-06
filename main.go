@@ -12,7 +12,12 @@ import (
 var assets embed.FS
 
 func main() {
-	err := wails.Run(&options.App{
+	translationHandler, err := newTranslationHandler(configuredTranslationEndpoint())
+	if err != nil {
+		println("Error:", err.Error())
+		return
+	}
+	err = wails.Run(&options.App{
 		Title:         "Lychee",
 		Width:         860,
 		Height:        600,
@@ -21,7 +26,8 @@ func main() {
 		DisableResize: true,
 		Frameless:     true,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:  assets,
+			Handler: translationHandler,
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 255},
 	})

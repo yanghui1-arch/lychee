@@ -4,17 +4,17 @@ import {
   LANGUAGES,
   MAX_LENGTH,
   RESULT_TEXT,
-  SAMPLE_TEXT,
   matchesEntry,
   type Collection,
   type Entry,
   type Language,
   type Preferences,
+  type SourceLanguage,
 } from './model'
 
 type SavedState = {
   text: string
-  source: Language
+  source: SourceLanguage
   target: Language
   favorites: Entry[]
   history: Entry[]
@@ -22,8 +22,8 @@ type SavedState = {
 }
 const STORAGE_KEY = 'lychee.workspace.v1'
 const defaults: SavedState = {
-  text: SAMPLE_TEXT,
-  source: 'zh-CN',
+  text: '',
+  source: 'auto',
   target: 'en-US',
   favorites: [],
   history: DEMO_ENTRIES,
@@ -39,6 +39,8 @@ function readState(): SavedState {
     const value = saved as Partial<SavedState>
     const validLanguage = (language: unknown): language is Language =>
       LANGUAGES.some((item) => item.value === language)
+    const validSource = (language: unknown): language is SourceLanguage =>
+      language === 'auto' || validLanguage(language)
     const validEntries = (entries: unknown): entries is Entry[] =>
       Array.isArray(entries) &&
       entries.every(
@@ -48,7 +50,7 @@ function readState(): SavedState {
           typeof entry.text === 'string' &&
           Number.isFinite(Date.parse(entry.createdAt)) &&
           (entry.result === undefined || typeof entry.result === 'string') &&
-          validLanguage(entry.source) &&
+          validSource(entry.source) &&
           validLanguage(entry.target),
       )
     return {
@@ -56,7 +58,7 @@ function readState(): SavedState {
         typeof value.text === 'string'
           ? value.text.slice(0, MAX_LENGTH)
           : defaults.text,
-      source: validLanguage(value.source) ? value.source : defaults.source,
+      source: validSource(value.source) ? value.source : defaults.source,
       target: validLanguage(value.target) ? value.target : defaults.target,
       favorites: validEntries(value.favorites)
         ? value.favorites.slice(0, 50)

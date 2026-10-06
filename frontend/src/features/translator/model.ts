@@ -14,13 +14,18 @@ export const LANGUAGES = [
 ] as const
 
 export type Language = (typeof LANGUAGES)[number]['value']
+export const SOURCE_LANGUAGES = [
+  { value: 'auto', label: '自动识别' },
+  ...LANGUAGES,
+] as const
+export type SourceLanguage = (typeof SOURCE_LANGUAGES)[number]['value']
 export type Page = 'translate' | 'interpret' | 'settings' | 'manual'
 export type Collection = 'history' | 'favorites'
 export type Entry = {
   id: string
   text: string
   result?: string
-  source: Language
+  source: SourceLanguage
   target: Language
   createdAt: string
 }

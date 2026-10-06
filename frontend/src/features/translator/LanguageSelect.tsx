@@ -6,30 +6,45 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { LANGUAGES, type Language } from './model'
+import {
+  LANGUAGES,
+  SOURCE_LANGUAGES,
+  type Language,
+  type SourceLanguage,
+} from './model'
 
-export function LanguageSelect({
-  label,
-  value,
-  onChange,
-}: {
+type LanguageSelectProps = {
   label: string
-  value: Language
-  onChange: (value: Language) => void
-}) {
+} & (
+  | { value: Language; onChange: (value: Language) => void; autoDetect?: false }
+  | {
+      value: SourceLanguage
+      onChange: (value: SourceLanguage) => void
+      autoDetect: true
+    }
+)
+
+export function LanguageSelect(props: LanguageSelectProps) {
   const id = useId()
+  const languages = props.autoDetect ? SOURCE_LANGUAGES : LANGUAGES
   return (
     <Select
-      items={LANGUAGES}
-      value={value}
+      items={languages}
+      value={props.value}
       onValueChange={(next) => {
-        if (next) onChange(next)
+        if (next === null) return
+        if (props.autoDetect) props.onChange(next)
+        else if (next !== 'auto') props.onChange(next)
       }}
     >
       <label className="language-label" htmlFor={id}>
-        {label}
+        {props.label}
       </label>
-      <SelectTrigger id={id} className="language-trigger" aria-label={label}>
+      <SelectTrigger
+        id={id}
+        className="language-trigger"
+        aria-label={props.label}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent
@@ -38,7 +53,7 @@ export function LanguageSelect({
         sideOffset={8}
         alignItemWithTrigger={false}
       >
-        {LANGUAGES.map((language) => (
+        {languages.map((language) => (
           <SelectItem
             className="select-item"
             key={language.value}
