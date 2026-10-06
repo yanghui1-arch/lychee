@@ -43,11 +43,11 @@ export function WorkspaceHeader() {
         <TabsTrigger className="t-tab" value="interpret">
           同传
         </TabsTrigger>
-        <TabsTrigger className="t-tab" value="settings">
-          设置
-        </TabsTrigger>
         <TabsTrigger className="t-tab" value="manual">
           手册
+        </TabsTrigger>
+        <TabsTrigger className="t-tab" value="settings">
+          设置
         </TabsTrigger>
         <TabsIndicator className="t-tabs-pill" aria-hidden="true" />
       </TabsList>
