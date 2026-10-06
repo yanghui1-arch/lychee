@@ -194,7 +194,7 @@ a:focus-visible {
   margin-top: 12px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  height: 50%;
+  height: var(--translation-panel-height, 50%);
   gap: 16px;
   min-height: 0;
 }

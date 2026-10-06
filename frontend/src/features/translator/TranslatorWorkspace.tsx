@@ -12,11 +12,17 @@ import { WorkspaceHeader } from './WorkspaceHeader'
 import { MAX_LENGTH, RESULT_TEXT, type Page } from './model'
 import { useTranslator } from './useTranslator'
 import { useTranslation } from './useTranslation'
+import { useTranslationPanelHeight } from './useTranslationPanelHeight'
 
 export function TranslatorWorkspace() {
   const translator = useTranslator()
   const [page, setPage] = useState<Page>('translate')
   const [composing, setComposing] = useState(false)
+  const { panelsRef, sourceRef } = useTranslationPanelHeight(
+    translator.text,
+    page,
+    translator.preferences.textSize,
+  )
   const translation = useTranslation(
     {
       text: translator.text,
@@ -66,7 +72,7 @@ export function TranslatorWorkspace() {
       <WorkspaceHeader />
       <TabsContent value={page} className="workspace-body" data-page={page}>
         {(page === 'translate' || page === 'interpret') && (
-          <div className="translation-panels">
+          <div ref={panelsRef} className="translation-panels">
             <section
               className="translation-panel source-panel"
               aria-label="原文"
@@ -84,6 +90,7 @@ export function TranslatorWorkspace() {
               </div>
               <div className="source-editor">
                 <Textarea
+                  ref={sourceRef}
                   className="source-field"
                   aria-label="输入原文"
                   spellCheck={false}
