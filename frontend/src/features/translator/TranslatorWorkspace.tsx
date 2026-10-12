@@ -9,7 +9,7 @@ import { useToastManager } from '@/components/ui/toast'
 import { copyText } from '@/lib/desktop'
 import { LanguageSelect } from './LanguageSelect'
 import { WorkspaceHeader } from './WorkspaceHeader'
-import { MAX_LENGTH, RESULT_TEXT, type Page } from './model'
+import { MAX_LENGTH, type Page } from './model'
 import { useTranslator } from './useTranslator'
 import { useTranslation } from './useTranslation'
 import { useTranslationPanelHeight } from './useTranslationPanelHeight'
@@ -33,7 +33,7 @@ export function TranslatorWorkspace() {
     composing,
   )
   const resultText = {
-    idle: RESULT_TEXT,
+    idle: '',
     waiting: '等待输入完成…',
     loading: '正在翻译…',
     success: translation.text,
@@ -143,7 +143,7 @@ export function TranslatorWorkspace() {
                 aria-live="polite"
                 aria-busy={translation.status === 'loading'}
               >
-                <p>{resultText}</p>
+                {resultText && <p>{resultText}</p>}
                 {translation.status === 'error' && (
                   <Button
                     variant="outline"

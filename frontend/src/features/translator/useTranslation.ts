@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { translate, type TranslationRequest } from './translation-api'
 
 export const INPUT_IDLE_MS = 600
@@ -17,27 +17,38 @@ export function useTranslation(
   const { text, source_language, target_language } = request
   const [state, setState] = useState(idle)
   const [attempt, retry] = useReducer((value: number) => value + 1, 0)
+  const requestController = useRef<AbortController | null>(null)
+
+  // Tab changes keep the current request and result; input changes invalidate them.
+  useEffect(() => {
+    return () => {
+      requestController.current?.abort()
+      requestController.current = null
+    }
+  }, [text, source_language, target_language, composing, attempt])
 
   useEffect(() => {
-    if (!enabled || !text.trim()) {
+    if (!text.trim()) {
       setState(idle)
       return
     }
+    if (!enabled || requestController.current) return
     setState({ status: 'waiting', text: '', error: '' })
     if (composing) return
 
-    let active = true
-    const controller = new AbortController()
     const timer = window.setTimeout(async () => {
+      const controller = new AbortController()
+      requestController.current = controller
       setState({ status: 'loading', text: '', error: '' })
       try {
         const result = await translate(
           { text, source_language, target_language },
           controller.signal,
         )
-        if (active) setState({ status: 'success', text: result, error: '' })
+        if (!controller.signal.aborted)
+          setState({ status: 'success', text: result, error: '' })
       } catch (error) {
-        if (active) {
+        if (!controller.signal.aborted) {
           setState({
             status: 'error',
             text: '',
@@ -53,11 +64,9 @@ export function useTranslation(
     }, INPUT_IDLE_MS)
 
     return () => {
-      active = false
       window.clearTimeout(timer)
-      controller.abort()
     }
   }, [text, source_language, target_language, enabled, composing, attempt])
 
-  return { ...state, retry }
+  return { ...(enabled ? state : idle), retry }
 }

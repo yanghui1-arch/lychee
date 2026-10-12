@@ -86,12 +86,12 @@ a:focus-visible {
   background: var(--color-background);
 }
 .workspace-header {
-  height: 60px;
+  height: 84px;
   padding-top: 8px;
   flex-shrink: 0;
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   --wails-draggable: drag;
 }
@@ -101,6 +101,7 @@ a:focus-visible {
   --tabs-text-muted: #737373;
   --tabs-text-active: #000000;
   position: absolute;
+  top: 40px;
   left: 50%;
   transform: translateX(-50%);
   width: 324px;
@@ -550,14 +551,6 @@ a:focus-visible {
     height: auto;
     min-height: 100svh;
     padding: 0 10px 10px;
-  }
-  .workspace-header {
-    height: 90px;
-    align-items: flex-start;
-    padding-top: 8px;
-  }
-  .workspace-navigation {
-    top: 46px;
   }
   .workspace-body {
     grid-template-rows: auto;
