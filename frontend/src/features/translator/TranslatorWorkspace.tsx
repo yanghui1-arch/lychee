@@ -197,10 +197,10 @@ export function TranslatorWorkspace() {
             </Button>
           </div>
         )}
-        {page === 'image' && (
-          <section className="page-placeholder" aria-label="图译">
-            <h1>图译</h1>
-            <p>图片翻译内容将在这里显示。</p>
+        {page === 'tools' && (
+          <section className="page-placeholder" aria-label="工具">
+            <h1>工具</h1>
+            <p>翻译工具将在这里显示。</p>
           </section>
         )}
         {page === 'subtitle' && (
