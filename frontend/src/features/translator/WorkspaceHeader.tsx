@@ -3,6 +3,7 @@ import { Minus, X } from 'lucide-react'
 import lycheeLogo from '@/assets/lycheeLogo.webp'
 import { Button } from '@/components/ui/button'
 import { TabsIndicator, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { UserMenu } from './UserMenu'
 import {
   browserPlatform,
   closeApp,
@@ -51,6 +52,7 @@ export function WorkspaceHeader() {
         </TabsTrigger>
         <TabsIndicator className="t-tabs-pill" aria-hidden="true" />
       </TabsList>
+      <UserMenu />
       <div
         className="window-controls"
         data-platform={platform}
