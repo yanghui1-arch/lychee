@@ -40,14 +40,14 @@ export function WorkspaceHeader() {
         <TabsTrigger className="t-tab" value="translate">
           文译
         </TabsTrigger>
-        <TabsTrigger className="t-tab" value="image">
-          图译
-        </TabsTrigger>
         <TabsTrigger className="t-tab" value="interpret">
           同传
         </TabsTrigger>
         <TabsTrigger className="t-tab" value="subtitle">
           字幕
+        </TabsTrigger>
+        <TabsTrigger className="t-tab" value="tools">
+          工具
         </TabsTrigger>
         <TabsIndicator className="t-tabs-pill" aria-hidden="true" />
       </TabsList>
