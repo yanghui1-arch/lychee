@@ -7,6 +7,7 @@
 ## 当前功能
 
 - 文译 / 同传 / 字幕 / 工具导航；文译提供双栏编辑区与原文、译文语言选择。
+- 右上角用户菜单复刻参考图中的头像、额度、充值额度、积分明细、操作手册、设置和外观选项。浅色 / 跟随系统 / 深色会实际切换全局主题，选择保存在本机 `lychee.appearance.v1`；默认跟随系统。头像 Y 和 14,320 积分为截图展示数据，四个业务入口暂作占位，点击提示尚未开放，待接入账户服务。
 - 文译两栏始终等高，默认占内容区一半高度；随原文增长同步增高，最多占内容区 90%，超出后在框内滚动，删短文字后自动缩回。
 - 5,000 字输入限制、动态字数、复制与译文喜欢 / 取消喜欢；两栏间的细线双向箭头可交换原文与译文语言。
 - 工具、字幕页目前显示内容占位；截图翻译、图片翻译等功能归入工具页。
@@ -91,6 +92,7 @@ frontend/
 - [Rare UI](https://www.rareui.com/components)：Animated Counter，保留原始实现和署名。
 - [shadcn/ui](https://ui.shadcn.com)：Base Nova Tabs、Table、Input、Button、Toggle、Select、Dropdown Menu 与 Textarea，底层使用 Base UI。Tabs 的方向样式适配当前 Base UI 的 `data-orientation` 属性。
 - [Base UI Toast](https://base-ui.com/react/components/toast)：管理提示的生命周期、自动关闭、重复消息与无障碍播报。
+- [Base UI Avatar](https://base-ui.com/react/components/avatar)：用户头像回退字母；用户菜单沿用 shadcn Dropdown Menu，外观选择使用其 Radio Group / Radio Item，弹出箭头由 Base UI Menu Arrow 定位。
 - [Fontsource](https://fontsource.org/fonts/inter)：统一使用自托管 Inter 可变字体，OFL 授权随源码保留；Inter 未覆盖的中文字形由系统无衬线字体补齐。
 
 授权原文位于 `frontend/licenses/`，本 README 保留组件来源链接与署名。
