@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"embed"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -17,7 +19,14 @@ func main() {
 		println("Error:", err.Error())
 		return
 	}
+	audio := newAudioService()
 	err = wails.Run(&options.App{
+		Bind: []interface{}{audio},
+		OnStartup: func(ctx context.Context) {
+			audio.ctx = ctx
+			audio.emit = func(event string, data any) { wailsruntime.EventsEmit(ctx, event, data) }
+		},
+		OnShutdown:    func(context.Context) { audio.StopAudioCapture() },
 		Title:         "Lychee",
 		Width:         860,
 		Height:        600,

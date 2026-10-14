@@ -98,24 +98,29 @@
   gap: 18px;
 }
 .subtitle-heading-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 3px;
+  align-items: start;
 }
 .subtitle-heading-row h1 {
+  grid-column: 1;
+  grid-row: 1;
   margin: 0;
   font-size: 18px;
   font-weight: 650;
   line-height: 1.4;
 }
 .subtitle-heading-row p {
-  margin: 3px 0 0;
+  margin: 0;
   color: var(--subtle-foreground);
   font-size: 13px;
   line-height: 1.5;
 }
 .subtitle-switch {
+  grid-column: 3;
+  grid-row: 1;
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -144,6 +149,59 @@
 }
 .subtitle-switch[aria-checked='true'] > span {
   transform: translateX(22px);
+}
+.subtitle-switch:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.subtitle-audio-status {
+  display: grid;
+  grid-column: 1 / 3;
+  grid-row: 2;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-width: 0;
+}
+.subtitle-audio-description {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.subtitle-listening-label {
+  grid-column: 2;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.subtitle-listening-track {
+  display: inline-flex;
+  width: max-content;
+  vertical-align: top;
+}
+.subtitle-listening-activity {
+  width: 5em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .subtitle-listening-track {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+.subtitle-audio-meter {
+  grid-column: 1;
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--color-border);
+}
+.subtitle-audio-meter > span {
+  display: block;
+  height: 100%;
+  background: #39a66b;
+  transition: width 100ms ease;
 }
 .subtitle-source-row {
   display: grid;
@@ -185,6 +243,31 @@
   width: 14px;
   height: 14px;
   color: var(--subtle-foreground);
+}
+.subtitle-app-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.subtitle-audio-trigger [data-slot='select-value'] {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.subtitle-audio-popup {
+  width: min(420px, calc(100vw - 24px));
+  min-width: var(--anchor-width);
+}
+.subtitle-audio-option > :first-child {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.subtitle-audio-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .subtitle-controls {
   display: grid;

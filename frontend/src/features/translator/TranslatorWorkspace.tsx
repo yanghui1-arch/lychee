@@ -14,9 +14,11 @@ import { useTranslator } from './useTranslator'
 import { useTranslation } from './useTranslation'
 import { useTranslationPanelHeight } from './useTranslationPanelHeight'
 import { SubtitleWorkspace } from '@/features/subtitle/SubtitleWorkspace'
+import { useAudioCapture } from '@/features/subtitle/useAudioCapture'
 
 export function TranslatorWorkspace() {
   const translator = useTranslator()
+  const audio = useAudioCapture()
   const [page, setPage] = useState<Page>('translate')
   const [composing, setComposing] = useState(false)
   const { panelsRef, sourceRef } = useTranslationPanelHeight(
@@ -204,7 +206,7 @@ export function TranslatorWorkspace() {
             <p>翻译工具将在这里显示。</p>
           </section>
         )}
-        {page === 'subtitle' && <SubtitleWorkspace />}
+        {page === 'subtitle' && <SubtitleWorkspace audio={audio} />}
       </TabsContent>
     </Tabs>
   )
