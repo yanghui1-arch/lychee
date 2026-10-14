@@ -60,6 +60,30 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SubtitleSettings {
+	    source: string;
+	    target: string;
+	    fontSize: number;
+	    position: string;
+	    customX: number;
+	    customY: number;
+	    style: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubtitleSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.target = source["target"];
+	        this.fontSize = source["fontSize"];
+	        this.position = source["position"];
+	        this.customX = source["customX"];
+	        this.customY = source["customY"];
+	        this.style = source["style"];
+	    }
+	}
 
 }
 

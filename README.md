@@ -27,7 +27,13 @@ Windows 64 位桌面端在「字幕 → 监听来源」默认选择「全局监�
 
 单独应用使用 Windows [进程回环采集](https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/)，包含目标进程及子进程，不采集其他应用的声音；需要 Windows 11 或 Windows build 20348 及以上。按相同可执行文件的父子进程合并浏览器等多进程应用，并用进程创建时间防止重启后的 PID 复用。全局监听使用默认输出设备的 [WASAPI loopback](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording) 采集混合声音，设备断开会显示错误。
 
-采集输出为 16 kHz、单声道、16 位 PCM，每 200 毫秒通过 Wails `audio:chunk` 事件提供一块数据（`pcm` 为 Base64，附带 `session`、`sampleRate`、`channels` 和 `level`）。`audio:status` 提供生命周期状态。音频只在内存中处理，不写入文件或上传；目前尚未接入语音识别、音频翻译或桌面悬浮字幕，因此预览仍为示例文本。
+开启字幕并成功连接音频来源后，桌面会显示独立的置顶字幕框。主窗口最小化或切换工作区时仍然显示；字幕框不抢焦点、穿透鼠标操作，不出现在任务栏。语言、字号、五种样式和顶部／底部／自定义位置与设置页同步，自定义位置通过预览拖动或方向键调整。字幕显示在开启时主窗口所在显示器的工作区内，适配 DPI 缩放并避开任务栏；关闭开关、音频采集失败或退出应用时收起并释放资源。
+
+桌面字幕当前使用与预览一致的双语占位文字。`subtitlePlaceholderText` 中以 Go 风格的函数注释与 TODO 标明后续语音识别和翻译接入点，尚未输出真实转写内容。
+
+默认「深底白字」按参考图使用约 70% 不透明度的黑色底（约 30% 透出画面），保证白字可读性。其他预设保留轻量选择：暖黄描边为完全无底，轻雾白字、浅底深字、暗夜轻底分别使用约 10%、15%、20% 不透明度的背景。文字保持实色，并绘制细描边与轻阴影；取消背景模糊、边框和圆角。预览与桌面字幕的西文统一使用内置 Roboto Medium（500 字重）；桌面端仅在应用进程内加载，不修改系统字体。中文 Microsoft YaHei UI、日文 Yu Gothic UI、韩文 Malgun Gothic 使用系统字体，缺失时由系统回退。原生文字以两倍分辨率绘制后缩小，改善透明窗口中的抗锯齿；默认深底款使用更轻的描边。
+
+采集输出为 16 kHz、单声道、16 位 PCM，每 200 毫秒通过 Wails `audio:chunk` 事件提供一块数据（`pcm` 为 Base64，附带 `session`、`sampleRate`、`channels` 和 `level`）。`audio:status` 提供生命周期状态。音频只在内存中处理，不写入文件或上传；目前尚未接入语音识别或音频翻译。
 
 普通测试运行 `go test ./...`。原生隔离测试会短暂播放两种低音量测试音，并验证只收到目标应用的测试音、应用退出后停止采集：
 
@@ -80,6 +86,9 @@ bun run --cwd frontend dev
 ```sh
 bun run --cwd frontend typecheck
 bun run --cwd frontend format:check
+bun test --cwd frontend tests
+go test -race ./...
+go vet ./...
 wails build
 ```
 
@@ -116,6 +125,7 @@ frontend/
 - [Base UI Toast](https://base-ui.com/react/components/toast)：管理提示的生命周期、自动关闭、重复消息与无障碍播报。
 - [Base UI Avatar](https://base-ui.com/react/components/avatar)：用户头像回退字母；用户菜单沿用 shadcn Dropdown Menu，外观选择使用其 Radio Group / Radio Item，弹出箭头由 Base UI Menu Arrow 定位。
 - [Fontsource](https://fontsource.org/fonts/inter)：统一使用自托管 Inter 可变字体，OFL 授权随源码保留；Inter 未覆盖的中文字形由系统无衬线字体补齐。
+- [Roboto](https://github.com/googlefonts/roboto-3-classic/releases/tag/v3.015)：字幕使用自带的 Roboto Medium 3.015，预览与 Windows 原生窗口共用同一份 TTF。OFL 授权与下载来源记录保存在 `frontend/licenses/roboto-OFL.txt` 和 `roboto-SOURCE.txt`。
 
 授权原文位于 `frontend/licenses/`，本 README 保留组件来源链接与署名。
 Rare UI 使用 MIT + Commons Clause + Attribution 条款，具体授权范围以该目录中的原文为准。

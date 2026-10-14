@@ -68,13 +68,9 @@ func TestApplicationIcons(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = processCommand.Process.Kill(); _ = processCommand.Wait() })
-	processHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(processCommand.Process.Pid))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer windows.CloseHandle(processHandle)
-	if applicationIcon(processHandle) != icons[0] {
-		t.Fatal("running process icon does not match its executable")
+	source, ok := applicationAudioSource(uint32(processCommand.Process.Pid), filepath.Base(paths[0]), "")
+	if !ok || source.Icon != icons[0] {
+		t.Fatal("application audio source icon does not match its executable")
 	}
 	if applicationIconFromPath(filepath.Join(t.TempDir(), "missing.exe")) != "" {
 		t.Fatal("missing icon did not fall back")

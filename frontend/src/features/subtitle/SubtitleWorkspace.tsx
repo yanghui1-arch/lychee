@@ -9,92 +9,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { LanguageSelect } from '@/features/translator/LanguageSelect'
-import { LANGUAGES, type Language } from '@/features/translator/model'
 import './subtitle.css'
 import { ListeningSourceLabel } from './ListeningSourceLabel'
+import type { AudioCapture, AudioOption } from './useAudioCapture'
 import {
-  defaultAudioOptions,
-  type AudioCapture,
-  type AudioOption,
-} from './useAudioCapture'
-
-const samples: Record<Language, string> = {
-  'zh-CN': '未来属于那些不断探索的人。',
-  'zh-TW': '未來屬於那些不斷探索的人。',
-  'en-US': 'The future belongs to those who keep exploring.',
-  'en-GB': 'The future belongs to those who keep exploring.',
-  'ja-JP': '未来は、探求し続ける人のものです。',
-  'ko-KR': '미래는 끊임없이 탐구하는 사람들의 것입니다.',
-  'fr-FR': 'L’avenir appartient à ceux qui continuent d’explorer.',
-  'de-DE': 'Die Zukunft gehört denen, die immer weiter entdecken.',
-}
-const styles = [
-  { value: 'charcoal', label: '深色磨砂' },
-  { value: 'mist', label: '浅灰字幕' },
-  { value: 'paper', label: '白色字幕' },
-  { value: 'slate', label: '灰色字幕' },
-  { value: 'graphite', label: '深灰字幕' },
-] as const
-type Settings = {
-  source: Language
-  target: Language
-  audio: string
-  fontSize: number
-  position: 'top' | 'bottom' | 'custom'
-  customX: number
-  customY: number
-  style: (typeof styles)[number]['value']
-}
-const defaults: Settings = {
-  source: 'en-US',
-  target: 'zh-CN',
-  audio: 'system',
-  fontSize: 30,
-  position: 'bottom',
-  customX: 50,
-  customY: 82,
-  style: 'charcoal',
-}
-const storageKey = 'lychee.subtitle.v2'
-const legacyStorageKey = 'lychee.subtitle.v1'
-
-function readSettings(): Settings {
-  try {
-    const current = localStorage.getItem(storageKey)
-    const saved = JSON.parse(
-      current || localStorage.getItem(legacyStorageKey) || 'null',
-    )
-    if (!saved || typeof saved !== 'object') return defaults
-    return Object.fromEntries(
-      Object.entries(defaults).map(([key, fallback]) => {
-        // Start the updated source picker with global listening, retaining
-        // language and appearance settings from the previous version.
-        const value = key === 'audio' && !current ? defaults.audio : saved[key]
-        const valid =
-          key === 'source' || key === 'target'
-            ? LANGUAGES.some((language) => language.value === value)
-            : key === 'fontSize'
-              ? Number.isInteger(value) && value >= 18 && value <= 40
-              : key === 'style'
-                ? styles.some((style) => style.value === value)
-                : key === 'audio'
-                  ? defaultAudioOptions.some(
-                      (audio) => audio.value === value,
-                    ) ||
-                    (typeof value === 'string' && /^app:\d+:\d+$/.test(value))
-                  : key === 'position'
-                    ? ['top', 'bottom', 'custom'].includes(value)
-                    : typeof value === 'number' &&
-                      Number.isFinite(value) &&
-                      value >= 0 &&
-                      value <= 100
-        return [key, valid ? value : fallback]
-      }),
-    ) as Settings
-  } catch {
-    return defaults
-  }
-}
+  readSubtitleSettings,
+  subtitleSamples,
+  subtitleStorageKey,
+  subtitleStyles,
+  type SubtitlePreferences,
+} from './model'
 
 function AudioSourceIcon({
   source,
@@ -122,7 +46,7 @@ function AudioSourceIcon({
 }
 
 export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
-  const [settings, setSettings] = useState(readSettings)
+  const [settings, setSettings] = useState(readSubtitleSettings)
   const enabled =
     audio.status.state === 'listening' || audio.status.state === 'starting'
   const audioSources: AudioOption[] = audio.sources.some(
@@ -147,15 +71,18 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
     x: number
     y: number
   } | null>(null)
-  const patch = (changes: Partial<Settings>) =>
+  const patch = (changes: Partial<SubtitlePreferences>) =>
     setSettings((previous) => ({ ...previous, ...changes }))
   const clamp = (value: number) => Math.min(100, Math.max(0, value))
   useEffect(() => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(settings))
+      localStorage.setItem(subtitleStorageKey, JSON.stringify(settings))
     } catch {
       // Keep the preview usable when local storage is unavailable.
     }
+  }, [settings])
+  useEffect(() => {
+    void audio.configureSubtitles(settings)
   }, [settings])
 
   return (
@@ -277,8 +204,8 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
             })
           }}
         >
-          <p lang={settings.source}>{samples[settings.source]}</p>
-          <p lang={settings.target}>{samples[settings.target]}</p>
+          <p lang={settings.source}>{subtitleSamples[settings.source]}</p>
+          <p lang={settings.target}>{subtitleSamples[settings.target]}</p>
         </div>
       </div>
 
@@ -381,24 +308,20 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
                 sideOffset={8}
                 alignItemWithTrigger={false}
               >
-                {audioSources.map((source) => {
-                  return (
-                    <SelectItem
-                      key={source.value}
-                      value={source.value}
-                      className="subtitle-audio-option"
-                      title={source.label}
-                    >
-                      <AudioSourceIcon
-                        source={source}
-                        className="size-5 text-muted-foreground"
-                      />
-                      <span className="subtitle-audio-label">
-                        {source.label}
-                      </span>
-                    </SelectItem>
-                  )
-                })}
+                {audioSources.map((source) => (
+                  <SelectItem
+                    key={source.value}
+                    value={source.value}
+                    className="subtitle-audio-option"
+                    title={source.label}
+                  >
+                    <AudioSourceIcon
+                      source={source}
+                      className="size-5 text-muted-foreground"
+                    />
+                    <span className="subtitle-audio-label">{source.label}</span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -479,7 +402,7 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
             role="radiogroup"
             aria-label="字幕样式"
           >
-            {styles.map((style) => (
+            {subtitleStyles.map((style) => (
               <label
                 key={style.value}
                 className="subtitle-style-option"

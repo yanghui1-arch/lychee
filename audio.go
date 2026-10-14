@@ -36,15 +36,16 @@ type AudioChunk struct {
 }
 
 type AudioService struct {
-	commands sync.Mutex
-	mu       sync.Mutex
-	ctx      context.Context
-	status   AudioStatus
-	cancel   context.CancelFunc
-	done     chan struct{}
-	emit     func(string, any)
-	list     func() ([]AudioSource, error)
-	capture  func(context.Context, AudioSource, func(), func([]byte)) error
+	commands  sync.Mutex
+	mu        sync.Mutex
+	ctx       context.Context
+	status    AudioStatus
+	cancel    context.CancelFunc
+	done      chan struct{}
+	emit      func(string, any)
+	list      func() ([]AudioSource, error)
+	capture   func(context.Context, AudioSource, func(), func([]byte)) error
+	subtitles *SubtitleService
 }
 
 func newAudioService() *AudioService {
@@ -60,6 +61,11 @@ func (a *AudioService) GetAudioStatus() AudioStatus {
 }
 
 func (a *AudioService) publish(status AudioStatus) {
+	if a.subtitles != nil {
+		if err := a.subtitles.setVisible(status.State == "listening"); err != nil && a.emit != nil {
+			a.emit("subtitle:error", err.Error())
+		}
+	}
 	if a.emit != nil {
 		a.emit("audio:status", status)
 	}

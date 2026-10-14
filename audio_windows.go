@@ -94,24 +94,7 @@ func listAudioSources() ([]AudioSource, error) {
 	seen := desktop.processes
 	// Visible desktop apps are selectable before they create an audio session.
 	// Also include background apps that are currently rendering audio.
-	if enumerator, err := deviceEnumerator(); err == nil {
-		defer enumerator.Release()
-		var devices *wca.IMMDeviceCollection
-		if enumerator.EnumAudioEndpoints(wca.ERender, wca.DEVICE_STATE_ACTIVE, &devices) == nil {
-			defer devices.Release()
-			var count uint32
-			if devices.GetCount(&count) == nil {
-				for i := uint32(0); i < count; i++ {
-					var device *wca.IMMDevice
-					if devices.Item(i, &device) != nil {
-						continue
-					}
-					collectAudioProcesses(device, seen)
-					device.Release()
-				}
-			}
-		}
-	}
+	collectActiveAudioProcesses(seen)
 	apps := make(map[uint32]AudioSource)
 	windowsDirectory, _ := windows.GetWindowsDirectory()
 	for pid := range seen {
@@ -126,35 +109,68 @@ func listAudioSources() ([]AudioSource, error) {
 		if !ok {
 			continue
 		}
-		if !userAudioApplication(process.exe, "", windowsDirectory) {
-			continue
+		if source, ok := applicationAudioSource(root, process.exe, windowsDirectory); ok {
+			apps[root] = source
 		}
-		handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, root)
-		if err != nil {
-			continue
-		}
-		var imagePath [32768]uint16
-		pathSize := uint32(len(imagePath))
-		if windows.QueryFullProcessImageName(handle, 0, &imagePath[0], &pathSize) != nil {
-			windows.CloseHandle(handle)
-			continue
-		}
-		path := windows.UTF16ToString(imagePath[:pathSize])
-		if !userAudioApplication(process.exe, path, windowsDirectory) {
-			windows.CloseHandle(handle)
-			continue
-		}
-		created, err := processIdentity(handle)
-		icon := applicationIconFromPath(path)
-		windows.CloseHandle(handle)
-		if err != nil {
-			continue
-		}
-		label := strings.TrimSuffix(filepath.Base(process.exe), filepath.Ext(process.exe))
-		apps[root] = AudioSource{ID: fmt.Sprintf("app:%d:%d", root, created), Label: label, Kind: "application", PID: root, Icon: icon}
 	}
 	appList := applicationSourceLabels(apps, desktop.windows, processes)
 	return append([]AudioSource{{ID: "system", Label: "全局监听", Kind: "system"}}, appList...), nil
+}
+
+func applicationAudioSource(pid uint32, exe, windowsDirectory string) (AudioSource, bool) {
+	if !userAudioApplication(exe, "", windowsDirectory) {
+		return AudioSource{}, false
+	}
+	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	if err != nil {
+		return AudioSource{}, false
+	}
+	defer windows.CloseHandle(handle)
+	var imagePath [32768]uint16
+	pathSize := uint32(len(imagePath))
+	if windows.QueryFullProcessImageName(handle, 0, &imagePath[0], &pathSize) != nil {
+		return AudioSource{}, false
+	}
+	path := windows.UTF16ToString(imagePath[:pathSize])
+	if !userAudioApplication(exe, path, windowsDirectory) {
+		return AudioSource{}, false
+	}
+	created, err := processIdentity(handle)
+	if err != nil {
+		return AudioSource{}, false
+	}
+	return AudioSource{
+		ID: fmt.Sprintf("app:%d:%d", pid, created), PID: pid, Kind: "application",
+		Label: strings.TrimSuffix(filepath.Base(exe), filepath.Ext(exe)),
+		Icon:  applicationIconFromPath(path),
+	}, true
+}
+
+// Audio-session discovery supplements desktop windows; unavailable output
+// devices must not prevent quiet, visible applications from being listed.
+func collectActiveAudioProcesses(seen map[uint32]bool) {
+	enumerator, err := deviceEnumerator()
+	if err != nil {
+		return
+	}
+	defer enumerator.Release()
+	var devices *wca.IMMDeviceCollection
+	if enumerator.EnumAudioEndpoints(wca.ERender, wca.DEVICE_STATE_ACTIVE, &devices) != nil {
+		return
+	}
+	defer devices.Release()
+	var count uint32
+	if devices.GetCount(&count) != nil {
+		return
+	}
+	for i := uint32(0); i < count; i++ {
+		var device *wca.IMMDevice
+		if devices.Item(i, &device) != nil {
+			continue
+		}
+		collectAudioProcesses(device, seen)
+		device.Release()
+	}
 }
 
 // Keep distinct capture targets, but identify same-named apps by a visible

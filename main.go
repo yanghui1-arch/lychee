@@ -20,13 +20,18 @@ func main() {
 		return
 	}
 	audio := newAudioService()
+	subtitles := newSubtitleService()
+	audio.subtitles = subtitles
 	err = wails.Run(&options.App{
-		Bind: []interface{}{audio},
+		Bind: []interface{}{audio, subtitles},
 		OnStartup: func(ctx context.Context) {
 			audio.ctx = ctx
 			audio.emit = func(event string, data any) { wailsruntime.EventsEmit(ctx, event, data) }
 		},
-		OnShutdown:    func(context.Context) { audio.StopAudioCapture() },
+		OnShutdown: func(context.Context) {
+			audio.StopAudioCapture()
+			subtitles.close()
+		},
 		Title:         "Lychee",
 		Width:         860,
 		Height:        600,

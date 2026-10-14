@@ -1,0 +1,7 @@
+Roboto Medium 3.015
+Upstream: https://github.com/googlefonts/roboto-3-classic
+Release: https://github.com/googlefonts/roboto-3-classic/releases/tag/v3.015
+Archive: https://github.com/googlefonts/roboto-3-classic/releases/download/v3.015/Roboto_v3.015.zip
+Archive entry: hinted/static/Roboto-Medium.ttf
+License: SIL Open Font License 1.1, reproduced in roboto-OFL.txt.
+Used unchanged by the subtitle preview and the native Windows caption renderer.
