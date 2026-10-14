@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Mic, Monitor } from 'lucide-react'
+import { AppWindow, Monitor } from 'lucide-react'
 import previewBackground from '@/assets/subtitle-preview.webp'
 import {
   Select,
@@ -11,6 +11,12 @@ import {
 import { LanguageSelect } from '@/features/translator/LanguageSelect'
 import { LANGUAGES, type Language } from '@/features/translator/model'
 import './subtitle.css'
+import { ListeningSourceLabel } from './ListeningSourceLabel'
+import {
+  defaultAudioOptions,
+  type AudioCapture,
+  type AudioOption,
+} from './useAudioCapture'
 
 const samples: Record<Language, string> = {
   'zh-CN': '未来属于那些不断探索的人。',
@@ -29,14 +35,10 @@ const styles = [
   { value: 'slate', label: '灰色字幕' },
   { value: 'graphite', label: '深灰字幕' },
 ] as const
-const audioSources = [
-  { value: 'system', label: '系统声音' },
-  { value: 'microphone', label: '麦克风' },
-] as const
 type Settings = {
   source: Language
   target: Language
-  audio: (typeof audioSources)[number]['value']
+  audio: string
   fontSize: number
   position: 'top' | 'bottom' | 'custom'
   customX: number
@@ -53,15 +55,21 @@ const defaults: Settings = {
   customY: 82,
   style: 'charcoal',
 }
-const storageKey = 'lychee.subtitle.v1'
+const storageKey = 'lychee.subtitle.v2'
+const legacyStorageKey = 'lychee.subtitle.v1'
 
 function readSettings(): Settings {
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null')
+    const current = localStorage.getItem(storageKey)
+    const saved = JSON.parse(
+      current || localStorage.getItem(legacyStorageKey) || 'null',
+    )
     if (!saved || typeof saved !== 'object') return defaults
     return Object.fromEntries(
       Object.entries(defaults).map(([key, fallback]) => {
-        const value = saved[key]
+        // Start the updated source picker with global listening, retaining
+        // language and appearance settings from the previous version.
+        const value = key === 'audio' && !current ? defaults.audio : saved[key]
         const valid =
           key === 'source' || key === 'target'
             ? LANGUAGES.some((language) => language.value === value)
@@ -70,7 +78,10 @@ function readSettings(): Settings {
               : key === 'style'
                 ? styles.some((style) => style.value === value)
                 : key === 'audio'
-                  ? audioSources.some((audio) => audio.value === value)
+                  ? defaultAudioOptions.some(
+                      (audio) => audio.value === value,
+                    ) ||
+                    (typeof value === 'string' && /^app:\d+:\d+$/.test(value))
                   : key === 'position'
                     ? ['top', 'bottom', 'custom'].includes(value)
                     : typeof value === 'number' &&
@@ -85,9 +96,50 @@ function readSettings(): Settings {
   }
 }
 
-export function SubtitleWorkspace() {
+function AudioSourceIcon({
+  source,
+  className,
+}: {
+  source: AudioOption
+  className?: string
+}) {
+  const [failedIcon, setFailedIcon] = useState('')
+  if (source.icon && source.icon !== failedIcon) {
+    return (
+      <img
+        src={source.icon}
+        alt=""
+        aria-hidden="true"
+        className={`subtitle-app-icon ${className ?? ''}`}
+        width={20}
+        height={20}
+        onError={() => setFailedIcon(source.icon!)}
+      />
+    )
+  }
+  const Icon = source.kind === 'system' ? Monitor : AppWindow
+  return <Icon className={className} strokeWidth={1.6} />
+}
+
+export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
   const [settings, setSettings] = useState(readSettings)
-  const [enabled, setEnabled] = useState(false)
+  const enabled =
+    audio.status.state === 'listening' || audio.status.state === 'starting'
+  const audioSources: AudioOption[] = audio.sources.some(
+    (source) => source.value === settings.audio,
+  )
+    ? audio.sources
+    : [
+        ...audio.sources,
+        {
+          value: settings.audio,
+          label: '所选应用当前不可用',
+          kind: 'application',
+        },
+      ]
+  const selectedAudio = audioSources.find(
+    (source) => source.value === settings.audio,
+  )!
   const drag = useRef<{
     id: number
     startX: number
@@ -232,10 +284,38 @@ export function SubtitleWorkspace() {
 
       <section className="subtitle-setup" aria-labelledby="subtitle-heading">
         <div className="subtitle-heading-row">
-          <div>
-            <h1 id="subtitle-heading">桌面字幕</h1>
-            <p id="subtitle-description">将电脑中的声音实时转换为桌面字幕</p>
-          </div>
+          <h1 id="subtitle-heading">桌面字幕</h1>
+          <p
+            id="subtitle-description"
+            className="subtitle-audio-status"
+            role="status"
+          >
+            {audio.status.state === 'listening' ? (
+              <>
+                <span
+                  className="subtitle-audio-meter"
+                  aria-label={`音量 ${Math.round(audio.status.level * 100)}%`}
+                >
+                  <span
+                    style={{
+                      width: `${Math.min(100, audio.status.level * 500)}%`,
+                    }}
+                  />
+                </span>
+                <ListeningSourceLabel
+                  key={audio.status.session}
+                  label={audio.status.source.label}
+                  hasSound={audio.status.level > 0.002}
+                />
+              </>
+            ) : (
+              <span className="subtitle-audio-description">
+                {audio.status.state === 'starting'
+                  ? '正在连接音频来源…'
+                  : audio.status.error || '将电脑中的声音实时转换为桌面字幕'}
+              </span>
+            )}
+          </p>
           <button
             type="button"
             role="switch"
@@ -243,7 +323,10 @@ export function SubtitleWorkspace() {
             aria-label="桌面字幕"
             aria-describedby="subtitle-description"
             className="subtitle-switch"
-            onClick={() => setEnabled((previous) => !previous)}
+            disabled={audio.pending}
+            onClick={() =>
+              void (enabled ? audio.stop() : audio.start(settings.audio))
+            }
           >
             <span />
           </button>
@@ -267,8 +350,17 @@ export function SubtitleWorkspace() {
             <Select
               items={audioSources}
               value={settings.audio}
-              onValueChange={(audio) => {
-                if (audio) patch({ audio })
+              disabled={audio.pending}
+              onOpenChange={(open) => {
+                if (open) void audio.refreshSources()
+              }}
+              onValueChange={(next) => {
+                if (!next) return
+                if (enabled) {
+                  void audio.start(next).then((success) => {
+                    if (success) patch({ audio: next })
+                  })
+                } else patch({ audio: next })
               }}
             >
               <label className="language-label" htmlFor="subtitle-audio-source">
@@ -278,36 +370,35 @@ export function SubtitleWorkspace() {
                 id="subtitle-audio-source"
                 className="subtitle-audio-trigger"
                 aria-label="监听来源"
+                title={selectedAudio.label}
               >
-                {settings.audio === 'system' ? (
-                  <Monitor strokeWidth={1.6} />
-                ) : (
-                  <Mic strokeWidth={1.6} />
-                )}
+                <AudioSourceIcon source={selectedAudio} />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent
-                className="select-popup"
+                className="select-popup subtitle-audio-popup"
                 align="start"
                 sideOffset={8}
                 alignItemWithTrigger={false}
               >
-                {audioSources.map((audio) => (
-                  <SelectItem key={audio.value} value={audio.value}>
-                    {audio.value === 'system' ? (
-                      <Monitor
+                {audioSources.map((source) => {
+                  return (
+                    <SelectItem
+                      key={source.value}
+                      value={source.value}
+                      className="subtitle-audio-option"
+                      title={source.label}
+                    >
+                      <AudioSourceIcon
+                        source={source}
                         className="size-5 text-muted-foreground"
-                        strokeWidth={1.6}
                       />
-                    ) : (
-                      <Mic
-                        className="size-5 text-muted-foreground"
-                        strokeWidth={1.6}
-                      />
-                    )}
-                    {audio.label}
-                  </SelectItem>
-                ))}
+                      <span className="subtitle-audio-label">
+                        {source.label}
+                      </span>
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
           </div>
