@@ -13,6 +13,7 @@ import { MAX_LENGTH, type Page } from './model'
 import { useTranslator } from './useTranslator'
 import { useTranslation } from './useTranslation'
 import { useTranslationPanelHeight } from './useTranslationPanelHeight'
+import { SubtitleWorkspace } from '@/features/subtitle/SubtitleWorkspace'
 
 export function TranslatorWorkspace() {
   const translator = useTranslator()
@@ -203,12 +204,7 @@ export function TranslatorWorkspace() {
             <p>翻译工具将在这里显示。</p>
           </section>
         )}
-        {page === 'subtitle' && (
-          <section className="page-placeholder" aria-label="字幕">
-            <h1>字幕</h1>
-            <p>字幕内容将在这里显示。</p>
-          </section>
-        )}
+        {page === 'subtitle' && <SubtitleWorkspace />}
       </TabsContent>
     </Tabs>
   )
