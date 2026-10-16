@@ -38,15 +38,6 @@ var applicationIcons = struct {
 	items map[string]cachedApplicationIcon
 }{items: make(map[string]cachedApplicationIcon)}
 
-func applicationIcon(process windows.Handle) string {
-	path := make([]uint16, 32768)
-	size := uint32(len(path))
-	if windows.QueryFullProcessImageName(process, 0, &path[0], &size) != nil {
-		return ""
-	}
-	return applicationIconFromPath(windows.UTF16ToString(path[:size]))
-}
-
 func applicationIconFromPath(path string) string {
 	info, err := os.Stat(path)
 	if err != nil {

@@ -7,6 +7,7 @@ import {
 } from '../../../wailsjs/go/main/AudioService'
 import { EventsOn } from '../../../wailsjs/runtime/runtime'
 import type { main } from '../../../wailsjs/go/models'
+import { Configure } from '../../../wailsjs/go/main/SubtitleService'
 import { isDesktop } from '@/lib/desktop'
 import { useToastManager } from '@/components/ui/toast'
 
@@ -18,14 +19,13 @@ export type AudioOption = {
 }
 type Status = Pick<
   main.AudioStatus,
-  'state' | 'source' | 'session' | 'level' | 'frames' | 'error'
+  'state' | 'source' | 'session' | 'level' | 'error'
 >
 const initialStatus: Status = {
   state: 'idle',
   source: { id: '', label: '', kind: '', pid: 0, icon: '' },
   session: 0,
   level: 0,
-  frames: 0,
   error: '',
 }
 export const defaultAudioOptions: AudioOption[] = [
@@ -38,9 +38,39 @@ export function useAudioCapture() {
   const [pending, setPending] = useState(false)
   const busy = useRef(false)
   const refreshing = useRef(false)
+  const subtitleConfiguration = useRef({
+    pending: null as main.SubtitleSettings | null,
+    running: false,
+    task: Promise.resolve(),
+  })
   const toast = useToastManager()
   const notify = (error: unknown) =>
     toast.add({ id: 'audio-error', title: String(error) })
+
+  function configureSubtitles(settings: main.SubtitleSettings) {
+    if (!isDesktop) return Promise.resolve()
+    const configuration = subtitleConfiguration.current
+    configuration.pending = settings
+    if (configuration.running) return configuration.task
+    configuration.running = true
+    configuration.task = (async () => {
+      try {
+        // Serialize bridge calls and coalesce rapid slider/drag updates.
+        while (configuration.pending) {
+          const next = configuration.pending
+          configuration.pending = null
+          try {
+            await Configure(next)
+          } catch (error) {
+            toast.add({ id: 'subtitle-error', title: String(error) })
+          }
+        }
+      } finally {
+        configuration.running = false
+      }
+    })()
+    return configuration.task
+  }
 
   async function refreshSources(silent = false) {
     if (!isDesktop || refreshing.current) return
@@ -71,16 +101,15 @@ export function useAudioCapture() {
       setStatus(next)
       if (next.error) notify(next.error)
     })
+    const offSubtitleError = EventsOn('subtitle:error', (error: string) => {
+      toast.add({ id: 'subtitle-error', title: error })
+    })
     const offChunk = EventsOn(
       'audio:chunk',
       (chunk: { session: number; level: number }) => {
         setStatus((previous) =>
           previous.state === 'listening' && previous.session === chunk.session
-            ? {
-                ...previous,
-                level: chunk.level,
-                frames: previous.frames + 3200,
-              }
+            ? { ...previous, level: chunk.level }
             : previous,
         )
       },
@@ -100,6 +129,7 @@ export function useAudioCapture() {
     return () => {
       alive = false
       offStatus()
+      offSubtitleError()
       offChunk()
       window.clearInterval(timer)
       window.removeEventListener('focus', refreshVisible)
@@ -116,6 +146,7 @@ export function useAudioCapture() {
     busy.current = true
     setPending(true)
     try {
+      if (source) await subtitleConfiguration.current.task
       const next = source
         ? await StartAudioCapture(source)
         : await StopAudioCapture()
@@ -135,6 +166,7 @@ export function useAudioCapture() {
     status,
     pending,
     refreshSources,
+    configureSubtitles,
     start: (source: string) => command(source),
     stop: () => command(),
   }

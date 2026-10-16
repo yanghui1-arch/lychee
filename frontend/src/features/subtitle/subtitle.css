@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Lychee Roboto';
+  src: url('../../assets/fonts/Roboto-Medium.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
 .subtitle-workspace {
   display: grid;
   grid-template-rows: minmax(200px, 1fr) auto auto;
@@ -40,11 +48,10 @@
   width: max-content;
   max-width: calc(100% - 24px);
   padding: 6px 18px;
-  border: 1px solid #ffffff24;
-  border-radius: 9px;
-  background: #171c26ba;
-  backdrop-filter: blur(12px);
-  color: #fff;
+  border: 0;
+  border-radius: 0;
+  background: var(--caption-background);
+  color: var(--caption-foreground);
   font-size: var(--subtitle-font-size);
   line-height: 1.5;
   text-align: center;
@@ -55,6 +62,23 @@
 .subtitle-caption p {
   margin: 0;
   overflow-wrap: anywhere;
+  font-family: 'Lychee Roboto', sans-serif;
+  font-weight: 500;
+  -webkit-text-stroke: var(--caption-stroke) var(--caption-outline);
+  paint-order: stroke fill;
+  text-shadow: 0 0.5px 1px var(--caption-shadow);
+}
+.subtitle-caption p:lang(zh) {
+  font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif;
+  font-weight: 400;
+}
+.subtitle-caption p:lang(ja) {
+  font-family: 'Yu Gothic UI', 'Segoe UI', sans-serif;
+  font-weight: 400;
+}
+.subtitle-caption p:lang(ko) {
+  font-family: 'Malgun Gothic', 'Segoe UI', sans-serif;
+  font-weight: 400;
 }
 .subtitle-caption p + p {
   margin-top: 3px;
@@ -77,20 +101,44 @@
   outline: 2px solid #fff;
   outline-offset: 3px;
 }
-.subtitle-caption[data-style='mist'] {
-  background: #e8e9eede;
-  color: #303542;
+.subtitle-caption,
+.subtitle-style-option {
+  --caption-stroke: 0.55px;
+  --caption-background: transparent;
+  --caption-foreground: #fff;
+  --caption-outline: #000000dc;
+  --caption-shadow: #00000079;
 }
-.subtitle-caption[data-style='paper'] {
-  border-color: #dcdfe8;
-  background: #fffffff0;
-  color: #303542;
+.subtitle-caption[data-style='charcoal'],
+.subtitle-style-option[data-style='charcoal'] {
+  --caption-stroke: 0.25px;
+  --caption-background: #000000b3;
+  --caption-outline: #00000060;
+  --caption-shadow: #00000035;
 }
-.subtitle-caption[data-style='slate'] {
-  background: #92939cdb;
+.subtitle-caption[data-style='mist'],
+.subtitle-style-option[data-style='mist'] {
+  --caption-background: #0f172a1a;
+  --caption-outline: #000000cc;
+  --caption-shadow: #00000070;
 }
-.subtitle-caption[data-style='graphite'] {
-  background: #4d4e54e0;
+.subtitle-caption[data-style='paper'],
+.subtitle-style-option[data-style='paper'] {
+  --caption-background: #ffffff26;
+  --caption-foreground: #20242c;
+  --caption-outline: #ffffffe6;
+  --caption-shadow: #ffffff7f;
+}
+.subtitle-caption[data-style='slate'],
+.subtitle-style-option[data-style='slate'] {
+  --caption-foreground: #ffe9a3;
+  --caption-outline: #000000e6;
+  --caption-shadow: #0000007f;
+}
+.subtitle-caption[data-style='graphite'],
+.subtitle-style-option[data-style='graphite'] {
+  --caption-background: #0f172a33;
+  --caption-foreground: #e6edf7;
 }
 .subtitle-setup {
   display: flex;
@@ -384,35 +432,28 @@
   flex: 1;
   min-width: 0;
   cursor: pointer;
+  border-radius: 2px;
+  background: repeating-conic-gradient(#dfe4ea 0% 25%, #eef1f5 0% 50%) 50% / 8px
+    8px;
 }
 .subtitle-style-option > span {
   display: grid;
   place-items: center;
   height: 100%;
-  border: 1px solid #ffffff1f;
-  border-radius: 5px;
-  background: #11131b;
-  color: #fff;
+  border: 0;
+  border-radius: 2px;
+  background: var(--caption-background);
+  color: var(--caption-foreground);
   font-size: 12px;
+  font-family: 'Lychee Roboto', sans-serif;
+  font-weight: 500;
+  -webkit-text-stroke: 0.45px var(--caption-outline);
+  paint-order: stroke fill;
+  text-shadow: 0 0.5px 1px var(--caption-shadow);
 }
 .subtitle-style-option input:checked + span {
   outline: 1.5px solid var(--color-foreground);
   outline-offset: 2px;
-}
-.subtitle-style-option[data-style='mist'] > span {
-  background: #e8e9ee;
-  color: #303542;
-}
-.subtitle-style-option[data-style='paper'] > span {
-  border-color: #dcdfe8;
-  background: #fff;
-  color: #303542;
-}
-.subtitle-style-option[data-style='slate'] > span {
-  background: #92939c;
-}
-.subtitle-style-option[data-style='graphite'] > span {
-  background: #4d4e54;
 }
 @media (max-width: 760px) {
   .subtitle-workspace {
