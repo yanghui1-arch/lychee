@@ -60,6 +60,28 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SubtitleFrame {
+	    key: string;
+	    source: string;
+	    translation: string;
+	    final: boolean;
+	    incomplete: boolean;
+	    pendingSeconds: number;
+
+	    static createFrom(source: any = {}) {
+	        return new SubtitleFrame(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.source = source["source"];
+	        this.translation = source["translation"];
+	        this.final = source["final"];
+	        this.incomplete = source["incomplete"];
+	        this.pendingSeconds = source["pendingSeconds"];
+	    }
+	}
 	export class SubtitleSettings {
 	    source: string;
 	    target: string;

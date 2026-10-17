@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"sync"
+	"time"
 )
 
 // SubtitleSettings describes the appearance and placement of desktop captions.
@@ -17,16 +19,24 @@ type SubtitleSettings struct {
 }
 
 type desktopSubtitle interface {
-	Update(SubtitleSettings, bool) error
+	Update(SubtitleSettings, SubtitleFrame, bool) error
+	Page(SubtitleSettings, string, string) (subtitlePage, error)
 	Close()
 }
 
+var errSubtitleNeedsReflow = errors.New("字幕区域改变，需要重新分页")
+
 // SubtitleService keeps the native caption window in sync with user settings.
 type SubtitleService struct {
-	mu       sync.Mutex
-	settings SubtitleSettings
-	visible  bool
-	window   desktopSubtitle
+	mu         sync.Mutex
+	settings   SubtitleSettings
+	visible    bool
+	window     desktopSubtitle
+	frame      SubtitleFrame
+	playback   subtitlePlayback
+	generation uint64
+	accepting  bool
+	emit       func(string, any)
 }
 
 func newSubtitleService() *SubtitleService {
@@ -46,7 +56,13 @@ func (s *SubtitleService) Configure(settings SubtitleSettings) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.window.Update(settings, s.visible); err != nil {
+	reflow := settings.FontSize != s.settings.FontSize || settings.Source != s.settings.Source || settings.Target != s.settings.Target
+	if reflow && s.playback.HasContent() {
+		s.settings = settings
+		s.playback.Reflow()
+		return nil
+	}
+	if err := s.window.Update(settings, s.frame, s.visible || s.playback.HasContent()); err != nil {
 		return err
 	}
 	s.settings = settings
@@ -56,14 +72,145 @@ func (s *SubtitleService) Configure(settings SubtitleSettings) error {
 func (s *SubtitleService) setVisible(visible bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.playback.stopped = !visible
 	if s.visible == visible {
 		return nil
 	}
-	if err := s.window.Update(s.settings, visible); err != nil {
+	if err := s.window.Update(s.settings, s.frame, visible || s.playback.HasContent()); err != nil {
 		return err
 	}
 	s.visible = visible
 	return nil
+}
+
+func (s *SubtitleService) GetSubtitleFrame() SubtitleFrame {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.frame
+}
+
+func (s *SubtitleService) snapshotSettings() SubtitleSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings
+}
+
+func (s *SubtitleService) accept(frame SubtitleFrame) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.playback.Accept(frame)
+}
+
+func (s *SubtitleService) reset() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clearLocked(true)
+	return s.generation
+}
+
+func (s *SubtitleService) resume(ctx context.Context) (uint64, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ctx.Err() != nil {
+		return 0, false
+	}
+	s.clearLocked(true)
+	return s.generation, true
+}
+
+func (s *SubtitleService) discard() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clearLocked(false)
+}
+
+func (s *SubtitleService) clearLocked(accepting bool) {
+	s.generation++
+	s.accepting = accepting
+	// Clear settled pages, previews, continuation clocks and estimates together.
+	s.frame, s.playback = SubtitleFrame{}, subtitlePlayback{stopped: !s.visible}
+	if err := s.window.Update(s.settings, s.frame, false); err != nil && s.emit != nil {
+		s.emit("subtitle:error", err.Error())
+	}
+	if s.emit != nil {
+		s.emit("subtitle:frame", s.frame)
+	}
+}
+
+func (s *SubtitleService) currentGeneration(generation uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.accepting && s.generation == generation
+}
+
+func (s *SubtitleService) acceptGeneration(generation uint64, frame SubtitleFrame) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.accepting || generation != s.generation {
+		return nil
+	}
+	return s.playback.Accept(frame)
+}
+
+func (s *SubtitleService) interruptGeneration(generation uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.accepting || generation != s.generation {
+		return false
+	}
+	s.playback.MarkIncomplete()
+	return true
+}
+
+func (s *SubtitleService) start(ctx context.Context, emit func(string, any)) {
+	s.emit = emit
+	go func() {
+		ticker := time.NewTicker(40 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.present()
+			}
+		}
+	}()
+}
+
+func (s *SubtitleService) present() {
+	s.presentAt(time.Now())
+}
+
+func (s *SubtitleService) presentAt(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next, err := s.playback.Tick(now, func(source, translation string) (subtitlePage, error) {
+		return s.window.Page(s.settings, source, translation)
+	})
+	if err != nil {
+		if s.emit != nil {
+			s.emit("subtitle:error", err.Error())
+		}
+		return
+	}
+	if next == s.frame {
+		return
+	}
+	if err := s.window.Update(s.settings, next, s.visible || s.playback.HasContent()); err != nil {
+		if errors.Is(err, errSubtitleNeedsReflow) {
+			s.playback.Reflow()
+			return
+		}
+		if s.emit != nil {
+			s.emit("subtitle:error", err.Error())
+		}
+		return
+	}
+	s.frame = next
+	if s.emit != nil {
+		s.emit("subtitle:frame", s.frame)
+	}
 }
 
 func (s *SubtitleService) close() {
@@ -110,8 +257,6 @@ var subtitleStyles = map[string]subtitleStyle{
 }
 
 // subtitlePlaceholderText returns the same sample sentence as the settings preview.
-// TODO: Replace these samples with streamed recognition and translation results
-// when the speech pipeline is connected; captured audio is not transcribed yet.
 func subtitlePlaceholderText(language string) string {
 	switch language {
 	case "zh-CN":

@@ -15,6 +15,7 @@ import {
 
 type LanguageSelectProps = {
   label: string
+  disabled?: boolean
 } & (
   | { value: Language; onChange: (value: Language) => void; autoDetect?: false }
   | {
@@ -29,6 +30,7 @@ export function LanguageSelect(props: LanguageSelectProps) {
   const languages = props.autoDetect ? SOURCE_LANGUAGES : LANGUAGES
   return (
     <Select
+      disabled={props.disabled}
       items={languages}
       value={props.value}
       onValueChange={(next) => {
