@@ -2,14 +2,19 @@ package main
 
 import "math"
 
+type subtitleInkRegion struct {
+	left, top, right, bottom int
+}
+
 // composeSubtitlePixels keeps the picture visible through a light or absent
 // backdrop. An outline and soft shadow preserve glyph contrast on moving video.
 // UpdateLayeredWindow requires all output colors to be premultiplied by alpha.
-func composeSubtitlePixels(pixels []byte, width, height int, scale float64, style subtitleStyle) {
+func composeSubtitlePixels(pixels []byte, width, height int, fontSize float64, regions []subtitleInkRegion, style subtitleStyle) {
 	mask := make([]byte, width*height)
 	for i := range mask {
 		mask[i] = max(pixels[i*4], pixels[i*4+1], pixels[i*4+2])
 	}
+	scale := fontSize / 30
 	strokeRadius := 1.2 * scale
 	if style.background.a >= 128 {
 		strokeRadius = 0.55 * scale
@@ -17,7 +22,7 @@ func composeSubtitlePixels(pixels []byte, width, height int, scale float64, styl
 	outline := outlineSubtitleMask(mask, width, height, strokeRadius)
 	shadow := blurSubtitleMask(mask, width, height, max(1, int(math.Round(2*scale))))
 	shadowOffset := max(1, int(math.Round(scale)))
-	backgroundAlpha := float64(style.background.a) / 255
+	backdrop := subtitleBackdropMask(mask, width, height, fontSize, regions)
 	// Channels are BGRA in a Windows DIB. Each column is a compositing layer.
 	channels := [3][3]byte{
 		{style.background.b, style.outline.b, style.foreground.b},
@@ -28,6 +33,7 @@ func composeSubtitlePixels(pixels []byte, width, height int, scale float64, styl
 		for x := 0; x < width; x++ {
 			index := y*width + x
 			i := index * 4
+			backgroundAlpha := float64(backdrop[index]) / 255 * float64(style.background.a) / 255
 			shadowAlpha := 0.0
 			if y >= shadowOffset {
 				shadowAlpha = float64(shadow[(y-shadowOffset)*width+x]) / 255 * float64(style.outline.a) / 255 * 0.55
@@ -46,6 +52,35 @@ func composeSubtitlePixels(pixels []byte, width, height int, scale float64, styl
 			pixels[i+3] = byte(math.Round(alpha * 255))
 		}
 	}
+}
+
+// The window remains fixed; only the painted backdrop follows each language's
+// actual glyph bounds. Font-relative padding avoids a large panel around small
+// text, and overlapping rectangles are a union rather than darker stacked fills.
+func subtitleBackdropMask(ink []byte, width, height int, fontSize float64, regions []subtitleInkRegion) []byte {
+	mask := make([]byte, len(ink))
+	padX := max(1, int(math.Round(fontSize*0.36)))
+	padY := max(1, int(math.Round(fontSize*0.16)))
+	for _, region := range regions {
+		left, top, right, bottom := width, height, 0, 0
+		for y := max(0, region.top); y < min(height, region.bottom); y++ {
+			for x := max(0, region.left); x < min(width, region.right); x++ {
+				if ink[y*width+x] != 0 {
+					left, top = min(left, x), min(top, y)
+					right, bottom = max(right, x+1), max(bottom, y+1)
+				}
+			}
+		}
+		if left >= right || top >= bottom {
+			continue
+		}
+		for y := max(0, top-padY); y < min(height, bottom+padY); y++ {
+			for x := max(0, left-padX); x < min(width, right+padX); x++ {
+				mask[y*width+x] = 255
+			}
+		}
+	}
+	return mask
 }
 
 func outlineSubtitleMask(mask []byte, width, height int, radius float64) []byte {

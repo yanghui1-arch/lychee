@@ -7,7 +7,10 @@ import {
 } from '../../../wailsjs/go/main/AudioService'
 import { EventsOn } from '../../../wailsjs/runtime/runtime'
 import type { main } from '../../../wailsjs/go/models'
-import { Configure } from '../../../wailsjs/go/main/SubtitleService'
+import {
+  Configure,
+  GetSubtitleFrame,
+} from '../../../wailsjs/go/main/SubtitleService'
 import { isDesktop } from '@/lib/desktop'
 import { useToastManager } from '@/components/ui/toast'
 
@@ -28,6 +31,22 @@ const initialStatus: Status = {
   level: 0,
   error: '',
 }
+export type SubtitleFrame = {
+  key: string
+  source: string
+  translation: string
+  final: boolean
+  incomplete: boolean
+  pendingSeconds: number
+}
+const emptyFrame: SubtitleFrame = {
+  key: '',
+  source: '',
+  translation: '',
+  final: false,
+  incomplete: false,
+  pendingSeconds: 0,
+}
 export const defaultAudioOptions: AudioOption[] = [
   { value: 'system', label: '全局监听', kind: 'system' },
 ]
@@ -36,6 +55,7 @@ export function useAudioCapture() {
   const [sources, setSources] = useState(defaultAudioOptions)
   const [status, setStatus] = useState<Status>(initialStatus)
   const [pending, setPending] = useState(false)
+  const [frame, setFrame] = useState<SubtitleFrame>(emptyFrame)
   const busy = useRef(false)
   const refreshing = useRef(false)
   const subtitleConfiguration = useRef({
@@ -96,6 +116,11 @@ export function useAudioCapture() {
     if (!isDesktop) return
     let alive = true
     let receivedStatus = false
+    let receivedFrame = false
+    const offFrame = EventsOn('subtitle:frame', (next: SubtitleFrame) => {
+      receivedFrame = true
+      setFrame(next)
+    })
     const offStatus = EventsOn('audio:status', (next: Status) => {
       receivedStatus = true
       setStatus(next)
@@ -104,8 +129,11 @@ export function useAudioCapture() {
     const offSubtitleError = EventsOn('subtitle:error', (error: string) => {
       toast.add({ id: 'subtitle-error', title: error })
     })
+    const offNotice = EventsOn('audio:notice', (message: string) => {
+      toast.add({ id: 'audio-notice', title: message })
+    })
     const offChunk = EventsOn(
-      'audio:chunk',
+      'audio:level',
       (chunk: { session: number; level: number }) => {
         setStatus((previous) =>
           previous.state === 'listening' && previous.session === chunk.session
@@ -119,6 +147,11 @@ export function useAudioCapture() {
         if (alive && !receivedStatus) setStatus(next)
       })
       .catch(notify)
+    void GetSubtitleFrame()
+      .then((next) => {
+        if (alive && !receivedFrame) setFrame(next)
+      })
+      .catch(notify)
     void refreshSources()
     const refreshVisible = () => {
       if (document.visibilityState === 'visible') void refreshSources(true)
@@ -130,7 +163,9 @@ export function useAudioCapture() {
       alive = false
       offStatus()
       offSubtitleError()
+      offNotice()
       offChunk()
+      offFrame()
       window.clearInterval(timer)
       window.removeEventListener('focus', refreshVisible)
       document.removeEventListener('visibilitychange', refreshVisible)
@@ -164,6 +199,7 @@ export function useAudioCapture() {
   return {
     sources,
     status,
+    frame,
     pending,
     refreshSources,
     configureSubtitles,

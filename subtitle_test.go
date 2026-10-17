@@ -14,12 +14,19 @@ type recordingSubtitle struct {
 	closed   bool
 }
 
-func (w *recordingSubtitle) Update(settings SubtitleSettings, visible bool) error {
+func sampleSubtitleFrame(settings SubtitleSettings) SubtitleFrame {
+	return SubtitleFrame{Key: "test", Source: subtitlePlaceholderText(settings.Source), Translation: subtitlePlaceholderText(settings.Target), Final: true}
+}
+
+func (w *recordingSubtitle) Update(settings SubtitleSettings, _ SubtitleFrame, visible bool) error {
 	w.settings, w.visible = settings, visible
 	w.updates++
 	return nil
 }
 func (w *recordingSubtitle) Close() { w.closed = true; w.visible = false }
+func (*recordingSubtitle) Page(_ SubtitleSettings, source, translation string) (subtitlePage, error) {
+	return splitSubtitlePage(source, translation, func(_ int, text string) bool { return subtitleReadingUnits(text) <= subtitlePageUnits })
+}
 
 func TestDesktopSubtitleFollowsAudioLifecycle(t *testing.T) {
 	window := &recordingSubtitle{}

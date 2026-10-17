@@ -5,3 +5,7 @@
 export function Configure(arg1) {
   return window['go']['main']['SubtitleService']['Configure'](arg1);
 }
+
+export function GetSubtitleFrame() {
+  return window['go']['main']['SubtitleService']['GetSubtitleFrame']();
+}

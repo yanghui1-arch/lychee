@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AppWindow, Monitor } from 'lucide-react'
+import { motion } from 'motion/react'
 import previewBackground from '@/assets/subtitle-preview.webp'
 import {
   Select,
@@ -49,6 +50,14 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
   const [settings, setSettings] = useState(readSubtitleSettings)
   const enabled =
     audio.status.state === 'listening' || audio.status.state === 'starting'
+  const live = enabled || !!audio.frame.key
+  const sourceText = live
+    ? audio.frame.source
+    : subtitleSamples[settings.source]
+  const translatedText = live
+    ? audio.frame.translation
+    : subtitleSamples[settings.target]
+  const languages = useRef({ source: settings.source, target: settings.target })
   const audioSources: AudioOption[] = audio.sources.some(
     (source) => source.value === settings.audio,
   )
@@ -82,7 +91,16 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
     }
   }, [settings])
   useEffect(() => {
-    void audio.configureSubtitles(settings)
+    const changed =
+      languages.current.source !== settings.source ||
+      languages.current.target !== settings.target
+    languages.current = { source: settings.source, target: settings.target }
+    void audio.configureSubtitles(settings).then(() => {
+      // A start message fixes the languages for that WS session. Restart the
+      // capture after canceling the old stream when a language changes live.
+      if (changed && audio.status.state === 'listening')
+        void audio.start(settings.audio)
+    })
   }, [settings])
 
   return (
@@ -103,10 +121,22 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
           alt="夕阳下的群山与云海"
           draggable={false}
         />
-        <span className="subtitle-preview-label">预览</span>
+        <span className="subtitle-preview-label">
+          {live
+            ? !audio.frame.key
+              ? '等待声音'
+              : audio.frame.incomplete
+                ? '译文未完成'
+                : '字幕阅读中'
+            : '预览'}
+          {live &&
+            audio.frame.pendingSeconds > 5 &&
+            ` · 待读约 ${audio.frame.pendingSeconds} 秒`}
+        </span>
         <div
           className="subtitle-caption"
           data-style={settings.style}
+          data-empty={!sourceText && !translatedText}
           role={settings.position === 'custom' ? 'button' : undefined}
           tabIndex={settings.position === 'custom' ? 0 : undefined}
           aria-label={
@@ -204,8 +234,24 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
             })
           }}
         >
-          <p lang={settings.source}>{subtitleSamples[settings.source]}</p>
-          <p lang={settings.target}>{subtitleSamples[settings.target]}</p>
+          <motion.div
+            data-bilingual={!!sourceText && !!translatedText}
+            key={live ? audio.frame.key : 'preview'}
+            initial={{ opacity: 0, y: 3 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {sourceText && (
+              <p lang={settings.source}>
+                <span>{sourceText}</span>
+              </p>
+            )}
+            {translatedText && (
+              <p lang={settings.target}>
+                <span>{translatedText}</span>
+              </p>
+            )}
+          </motion.div>
         </div>
       </div>
 
@@ -238,7 +284,7 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
             ) : (
               <span className="subtitle-audio-description">
                 {audio.status.state === 'starting'
-                  ? '正在连接音频来源…'
+                  ? '正在初始化语音监听…'
                   : audio.status.error || '将电脑中的声音实时转换为桌面字幕'}
               </span>
             )}
@@ -262,6 +308,7 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
           <div className="subtitle-language">
             <LanguageSelect
               label="原语言"
+              disabled={audio.pending}
               value={settings.source}
               onChange={(source) => patch({ source })}
             />
@@ -269,6 +316,7 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
           <div className="subtitle-language">
             <LanguageSelect
               label="目标语言"
+              disabled={audio.pending}
               value={settings.target}
               onChange={(target) => patch({ target })}
             />

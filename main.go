@@ -22,14 +22,22 @@ func main() {
 	audio := newAudioService()
 	subtitles := newSubtitleService()
 	audio.subtitles = subtitles
+	audio.startSpeech = newSpeechPipeline
+	var stopPresentation context.CancelFunc
 	err = wails.Run(&options.App{
 		Bind: []interface{}{audio, subtitles},
 		OnStartup: func(ctx context.Context) {
 			audio.ctx = ctx
 			audio.emit = func(event string, data any) { wailsruntime.EventsEmit(ctx, event, data) }
+			presentationContext, cancel := context.WithCancel(ctx)
+			stopPresentation = cancel
+			subtitles.start(presentationContext, audio.emit)
 		},
 		OnShutdown: func(context.Context) {
 			audio.StopAudioCapture()
+			if stopPresentation != nil {
+				stopPresentation()
+			}
 			subtitles.close()
 		},
 		Title:         "Lychee",

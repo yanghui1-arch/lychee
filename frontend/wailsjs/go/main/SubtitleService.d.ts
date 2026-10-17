@@ -3,3 +3,5 @@
 import {main} from '../models';
 
 export function Configure(arg1:main.SubtitleSettings):Promise<void>;
+
+export function GetSubtitleFrame():Promise<main.SubtitleFrame>;

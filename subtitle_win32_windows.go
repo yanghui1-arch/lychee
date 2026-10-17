@@ -33,6 +33,8 @@ var subtitleTextColor = subtitleGDI32.NewProc("SetTextColor")
 var subtitleBackgroundMode = subtitleGDI32.NewProc("SetBkMode")
 var subtitleDrawText = subtitleUser32.NewProc("DrawTextW")
 var subtitleFlush = subtitleGDI32.NewProc("GdiFlush")
+var subtitleSetTimer = subtitleUser32.NewProc("SetTimer")
+var subtitleKillTimer = subtitleUser32.NewProc("KillTimer")
 
 const (
 	subtitleUpdateMessage = 0x8001

@@ -367,6 +367,11 @@ func captureAudio(ctx context.Context, source AudioSource, ready func(), consume
 			lastChunk = time.Now()
 		}
 	}
+	// A manual stop can land between the 200ms capture blocks. Forward that
+	// final partial block before the speech pipeline sends its finish message.
+	if len(buffer) > 0 {
+		consume(append([]byte(nil), buffer...))
+	}
 	return nil
 }
 
