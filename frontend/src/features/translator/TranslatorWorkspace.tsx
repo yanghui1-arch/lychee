@@ -200,12 +200,6 @@ export function TranslatorWorkspace() {
             </Button>
           </div>
         )}
-        {page === 'tools' && (
-          <section className="page-placeholder" aria-label="工具">
-            <h1>工具</h1>
-            <p>翻译工具将在这里显示。</p>
-          </section>
-        )}
         {page === 'subtitle' && <SubtitleWorkspace audio={audio} />}
       </TabsContent>
     </Tabs>
