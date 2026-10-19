@@ -1,0 +1,302 @@
+.interpret-workspace {
+  --interpret-ink: #102d52;
+  --interpret-muted: #5e708b;
+  --interpret-line: #e8edf4;
+  --interpret-field: #f0f3f7;
+  --interpret-field-border: #e2e8f0;
+  --interpret-row-height: 40px;
+  width: calc(100% - 92px);
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 0 12px;
+  color: var(--interpret-ink);
+  align-self: start;
+}
+.interpret-section-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 64px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--interpret-line);
+}
+.interpret-section-header img {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+}
+.interpret-section-header h1,
+.interpret-section-header h2 {
+  margin: 0 0 2px;
+  color: var(--color-foreground);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.6px;
+}
+.interpret-section-header p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--interpret-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.interpret-section-header p svg {
+  width: 17px;
+  height: 17px;
+}
+.interpret-speak {
+  margin-top: 28px;
+}
+.interpret-row {
+  display: grid;
+  grid-template-columns: 58px minmax(90px, 1fr) minmax(0, 308px);
+  align-items: center;
+  column-gap: 20px;
+  min-height: var(--interpret-row-height);
+  border-bottom: 1px solid var(--interpret-line);
+}
+.interpret-row-icon {
+  justify-self: center;
+  width: 23px;
+  height: 23px;
+  color: var(--interpret-ink);
+}
+.interpret-row-label {
+  color: var(--interpret-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.interpret-row-control {
+  min-width: 0;
+  padding: 4px 4px 4px 0;
+}
+.interpret-select[data-slot='select-trigger'],
+.interpret-shortcut,
+.interpret-trigger {
+  width: 100%;
+  height: 30px;
+  border: 1px solid var(--interpret-field-border);
+  border-radius: 9px;
+  background: var(--interpret-field);
+  color: var(--interpret-ink);
+  font-size: 13px;
+  font-weight: 400;
+}
+.interpret-select[data-slot='select-trigger'] {
+  padding: 0 11px;
+  box-shadow: none;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+.interpret-select[data-slot='select-trigger']:hover,
+.interpret-shortcut:hover {
+  background: color-mix(
+    in srgb,
+    var(--interpret-field),
+    var(--interpret-ink) 4%
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--interpret-field-border),
+    var(--interpret-ink) 12%
+  );
+}
+.interpret-select [data-slot='select-value'] {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.interpret-select[data-slot='select-trigger'] > svg {
+  width: 14px;
+  height: 14px;
+  color: #728198;
+  stroke-width: 2.5;
+}
+.interpret-select-popup {
+  padding: 4px;
+}
+.interpret-select-popup [data-slot='select-item'] {
+  min-height: 30px;
+  font-size: 13px;
+  padding-left: 8px;
+}
+.interpret-language-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1.04fr);
+  align-items: center;
+  gap: 7px;
+}
+.interpret-language-arrow {
+  width: 18px;
+  height: 18px;
+  justify-self: center;
+  color: var(--interpret-muted);
+}
+.interpret-trigger {
+  position: relative;
+  display: flex;
+  isolation: isolate;
+  padding: 1px;
+}
+.interpret-trigger-pill {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  border-radius: 9px;
+  background: linear-gradient(125deg, #252525, #050505 80%);
+  box-shadow: 0 1px 3px #0000001a;
+}
+.interpret-trigger button {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--interpret-ink);
+  font: inherit;
+  transition: color 160ms ease;
+}
+.interpret-trigger button[aria-checked='true'] {
+  color: #fff;
+}
+.interpret-shortcut-reveal {
+  overflow: hidden;
+}
+.interpret-shortcut {
+  padding: 0 12px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+.interpret-shortcut[data-recording='true'] {
+  border-color: #168bf2;
+  background: #eaf5ff;
+  color: #1374c5;
+}
+.interpret-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+}
+.interpret-start {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  width: 210px;
+  height: 40px;
+  padding: 0 24px;
+  border: 1px solid #151515;
+  border-radius: 99px;
+  background: linear-gradient(125deg, #282828, #030303 80%);
+  box-shadow: 0 8px 22px #18263e0a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 400;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+.interpret-start svg {
+  width: 24px;
+  height: 24px;
+}
+.interpret-start:hover {
+  box-shadow: 0 6px 18px #18263e24;
+  transform: translateY(-1px);
+}
+.interpret-start:active {
+  transform: translateY(0) scale(0.98);
+}
+.workspace-body[data-page='interpret'] {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.dark .interpret-workspace {
+  --interpret-ink: #d6e5ff;
+  --interpret-muted: #a5b3cc;
+  --interpret-line: #2d3444;
+  --interpret-field: #242b38;
+  --interpret-field-border: #343f52;
+}
+.dark .interpret-trigger-pill,
+.dark .interpret-start {
+  background: linear-gradient(125deg, #e1e8f3, #fff);
+}
+.dark .interpret-trigger button[aria-checked='true'],
+.dark .interpret-start {
+  color: #10233e;
+}
+@media (min-height: 760px) {
+  .interpret-workspace {
+    --interpret-row-height: 54px;
+    padding-top: 16px;
+  }
+  .interpret-section-header {
+    min-height: 84px;
+    gap: 26px;
+    padding-bottom: 12px;
+  }
+  .interpret-section-header img {
+    width: 72px;
+    height: 72px;
+  }
+  .interpret-section-header h1,
+  .interpret-section-header h2 {
+    font-size: 30px;
+  }
+  .interpret-section-header p {
+    font-size: 17px;
+  }
+  .interpret-row {
+    grid-template-columns: 72px minmax(110px, 1fr) minmax(0, 42%);
+    column-gap: 26px;
+  }
+  .interpret-row-label,
+  .interpret-select[data-slot='select-trigger'],
+  .interpret-shortcut,
+  .interpret-trigger {
+    font-size: 16px;
+  }
+  .interpret-select[data-slot='select-trigger'],
+  .interpret-shortcut,
+  .interpret-trigger {
+    height: 39px;
+    border-radius: 11px;
+  }
+  .interpret-speak {
+    margin-top: 42px;
+  }
+  .interpret-footer {
+    padding-top: 20px;
+  }
+  .interpret-start {
+    width: 264px;
+    height: 51px;
+    font-size: 18px;
+  }
+}
+@media (max-width: 700px) {
+  .interpret-workspace {
+    width: calc(100% - 24px);
+  }
+  .interpret-row {
+    grid-template-columns: 38px 75px minmax(0, 1fr);
+    column-gap: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .interpret-workspace *,
+  .interpret-workspace *::before {
+    transition: none !important;
+  }
+}

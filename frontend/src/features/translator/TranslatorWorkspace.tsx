@@ -15,6 +15,7 @@ import { useTranslation } from './useTranslation'
 import { useTranslationPanelHeight } from './useTranslationPanelHeight'
 import { SubtitleWorkspace } from '@/features/subtitle/SubtitleWorkspace'
 import { useAudioCapture } from '@/features/subtitle/useAudioCapture'
+import { InterpretWorkspace } from '@/features/interpret/InterpretWorkspace'
 
 export function TranslatorWorkspace() {
   const translator = useTranslator()
@@ -74,7 +75,7 @@ export function TranslatorWorkspace() {
     >
       <WorkspaceHeader />
       <TabsContent value={page} className="workspace-body" data-page={page}>
-        {(page === 'translate' || page === 'interpret') && (
+        {page === 'translate' && (
           <div ref={panelsRef} className="translation-panels">
             <section
               className="translation-panel source-panel"
@@ -99,11 +100,7 @@ export function TranslatorWorkspace() {
                   spellCheck={false}
                   maxLength={MAX_LENGTH}
                   value={translator.text}
-                  placeholder={
-                    page === 'interpret'
-                      ? '同传内容将在这里显示…'
-                      : '输入你想翻译的内容…'
-                  }
+                  placeholder="输入你想翻译的内容…"
                   onChange={(event) => {
                     translator.patch({ text: event.target.value })
                     setLiked(false)
@@ -200,6 +197,7 @@ export function TranslatorWorkspace() {
             </Button>
           </div>
         )}
+        {page === 'interpret' && <InterpretWorkspace />}
         {page === 'subtitle' && <SubtitleWorkspace audio={audio} />}
       </TabsContent>
     </Tabs>
