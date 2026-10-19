@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -360,5 +361,77 @@ func TestNativeReadingPagesFitWithoutDiscardingText(t *testing.T) {
 		if withoutSpaces(displayedSource) != withoutSpaces(originalSource) || withoutSpaces(displayedTranslation) != withoutSpaces(originalTranslation) {
 			t.Fatal("native reading pages dropped part of the reply")
 		}
+	}
+}
+
+func TestNativeSingleLineCaptionsAppendThenReplace(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	for _, test := range []struct {
+		font, width int
+		scale       float64
+	}{{30, 1000, 1}, {40, 400, 1.25}, {18, 700, 2}} {
+		settings := newSubtitleService().settings
+		settings.FontSize = test.font
+		paginate := func(source, translation string) (subtitlePage, error) {
+			return paginateNativeSubtitle(settings, source, translation, test.width, test.scale)
+		}
+		var player subtitlePlayback
+		_ = player.Accept(SubtitleFrame{Key: "first", Source: "Hello.", Translation: "你好。", Final: true})
+		_ = player.Accept(SubtitleFrame{Key: "short", Source: "More.", Translation: "后续。", Final: true})
+		_ = player.Accept(SubtitleFrame{Key: "second", Source: strings.Repeat("New words follow the previous sentence. ", 3), Translation: strings.Repeat("后续字幕接在已有内容后面，空间不足时整行清屏。", 3), Final: true})
+		now := time.Unix(0, 0)
+		_, err := player.Tick(now, paginate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var checked uint64
+		retained, replaced := false, false
+		var previousKey string
+		for i := 0; i < 5000 && player.HasContent(); i++ {
+			frame := advanceCaption(t, &player, &now, 50*time.Millisecond, paginate)
+			if frame.Key == "" || player.elapsed < player.pageDuration || player.pageNumber == checked {
+				continue
+			}
+			checked = player.pageNumber
+			replaced = replaced || (previousKey != "" && previousKey != frame.Key)
+			previousKey = frame.Key
+			retained = retained || player.revealedSource != "" || player.revealedTranslation != ""
+			surface, err := renderSubtitle(settings, test.width, test.scale, frame)
+			if err != nil {
+				t.Fatalf("single-line caption overflowed native layout (%+v): %v", test, err)
+			}
+			surface.close()
+		}
+		if player.HasContent() || !retained || !replaced {
+			t.Fatalf("single-line captions failed to append, replace, or drain: %+v", test)
+		}
+	}
+}
+
+func TestNativeSubtitleRejectsASecondLine(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	font, err := subtitleFont(30, "zh-CN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer subtitleDeleteObject.Call(font)
+	dc, _, _ := subtitleCreateDC.Call(0)
+	if dc == 0 {
+		t.Fatal("cannot create single-line measurement DC")
+	}
+	defer subtitleDeleteDC.Call(dc)
+	singleHeight, fits := measureSubtitlePageText(dc, font, "单行字幕", 190, 120)
+	if !fits {
+		t.Fatal("one line was rejected")
+	}
+	height, fits := measureSubtitlePageText(dc, font, strings.Repeat("字", 12), 190, 120)
+	if fits || height <= singleHeight {
+		t.Fatal("two lines were accepted as a single line")
+	}
+	_, height = fitSubtitleText(dc, font, strings.Repeat("字", 20), 190, 120)
+	if height > singleHeight {
+		t.Fatal("fallback rendering still wraps to a second line")
 	}
 }

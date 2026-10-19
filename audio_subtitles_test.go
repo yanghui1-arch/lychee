@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestAudioSilenceClearsBacklogAndRejectsLateResults(t *testing.T) {
+func TestAudioSilencePreservesReadingTimeAndRejectsLateResults(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	subtitles := newSubtitleService()
@@ -53,14 +53,31 @@ func TestAudioSilenceClearsBacklogAndRejectsLateResults(t *testing.T) {
 	}
 	now = now.Add(500 * time.Millisecond)
 	_ = session.Push([]byte{0, 0}, 0)
-	if window.visible || subtitles.playback.HasContent() || len(subtitles.playback.pending) != 0 || subtitles.GetSubtitleFrame().Key != "" || contexts[0].Err() == nil {
-		t.Fatal("sustained silence did not clear all queues and cancel old speech")
+	if !window.visible || !subtitles.playback.HasContent() || len(subtitles.playback.pending) != 0 || contexts[0].Err() == nil {
+		t.Fatal("silence erased the visible chunk or failed to retire reception")
+	}
+	if len(subtitles.playback.queue) != 1 || len(subtitles.playback.queue[0].frame.Translation) != subtitles.playback.page.TranslationBytes {
+		t.Fatal("silence retained unread backlog beyond the current chunk")
 	}
 	receivers[0](speechEvent{Type: "translation", SessionID: "old", Sequence: 2, TranslatedText: "迟到的旧译文"})
 	failures[0](errors.New("old connection closed"))
 	receivers[0](speechEvent{Type: "session_interrupted"})
-	if failuresReported != 0 || notices != 0 || subtitles.playback.HasContent() {
+	if failuresReported != 0 || notices != 0 || len(subtitles.playback.queue) != 1 {
 		t.Fatal("retired callbacks resurrected old captions or reported a false failure")
+	}
+	for elapsed := time.Duration(0); elapsed < subtitles.playback.pageDuration+100*time.Millisecond; elapsed += 50 * time.Millisecond {
+		now = now.Add(50 * time.Millisecond)
+		subtitles.presentAt(now)
+	}
+	if !window.visible || subtitles.frame.Translation != subtitles.playback.page.Translation {
+		t.Fatal("silence cut off the current chunk before it could be read")
+	}
+	for i := 0; i < 100; i++ {
+		now = now.Add(50 * time.Millisecond)
+		subtitles.presentAt(now)
+	}
+	if subtitles.playback.HasContent() || subtitles.frame.Key != "" {
+		t.Fatal("paused caption did not clear after its final hold")
 	}
 	now = now.Add(time.Second)
 	_ = session.Push([]byte{0, 0}, 0)

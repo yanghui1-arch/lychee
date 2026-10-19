@@ -205,7 +205,7 @@ func measureSubtitlePageText(dc, font uintptr, text string, width, maxHeight int
 	lineHeight := drawSubtitleText(dc, font, "Ag", &lineRect, true)
 	rect := subtitleRect{Right: int32(width)}
 	height := drawSubtitleText(dc, font, text, &rect, true)
-	return height, height > 0 && height <= min(maxHeight, lineHeight*2) && int(rect.Right) <= width
+	return height, height > 0 && height <= min(maxHeight, lineHeight) && int(rect.Right) <= width
 }
 
 func paginateNativeSubtitle(settings SubtitleSettings, source, translation string, available int, scale float64) (subtitlePage, error) {
@@ -238,12 +238,12 @@ func paginateNativeSubtitle(settings SubtitleSettings, source, translation strin
 	})
 }
 
-// Fit the latest text to at most two actual font lines. Measuring the real
+// Fit the latest text to one actual font line. Measuring the real
 // glyphs also handles narrow monitors, large fonts, CJK, and unbroken words.
 func fitSubtitleText(dc, font uintptr, text string, width, maxHeight int) (string, int) {
 	lineRect := subtitleRect{Right: int32(width)}
 	lineHeight := drawSubtitleText(dc, font, "Ag", &lineRect, true)
-	limit := min(maxHeight, lineHeight*2)
+	limit := min(maxHeight, lineHeight)
 	measure := func(value string) (int, bool) {
 		rect := subtitleRect{Right: int32(width)}
 		height := drawSubtitleText(dc, font, value, &rect, true)

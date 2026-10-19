@@ -25,7 +25,7 @@ func (w *recordingSubtitle) Update(settings SubtitleSettings, _ SubtitleFrame, v
 }
 func (w *recordingSubtitle) Close() { w.closed = true; w.visible = false }
 func (*recordingSubtitle) Page(_ SubtitleSettings, source, translation string) (subtitlePage, error) {
-	return splitSubtitlePage(source, translation, func(_ int, text string) bool { return subtitleReadingUnits(text) <= subtitlePageUnits })
+	return readingTestPaginator(source, translation)
 }
 
 func TestDesktopSubtitleFollowsAudioLifecycle(t *testing.T) {
