@@ -15,5 +15,6 @@ func (*unsupportedDesktopSubtitle) Update(_ SubtitleSettings, _ SubtitleFrame, v
 }
 func (*unsupportedDesktopSubtitle) Close() {}
 func (*unsupportedDesktopSubtitle) Page(_ SubtitleSettings, source, translation string) (subtitlePage, error) {
-	return splitSubtitlePage(source, translation, func(_ int, text string) bool { return subtitleReadingUnits(text) <= subtitlePageUnits })
+	const fallbackLineUnits = 56.0
+	return splitSubtitlePage(source, translation, func(_ int, text string) bool { return subtitleReadingUnits(text) <= fallbackLineUnits })
 }

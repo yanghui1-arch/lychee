@@ -14,11 +14,12 @@ import (
 const (
 	// One CJK grapheme counts as one reading unit, a Latin letter as 0.4.
 	// This gives approximately 12 CJK characters / 30 Latin letters per second.
-	// Page length is bounded separately; quicker reveal never enlarges a page.
-	subtitleReadingRate = 12.0
-	subtitlePageUnits   = 28.0
-	subtitlePageHold    = 800 * time.Millisecond
-	subtitleQueueLimit  = 4 * 1024 * 1024
+	// Native font measurements determine a single line's capacity.
+	subtitleReadingRate   = 12.0
+	subtitleFrameInterval = 40 * time.Millisecond
+	subtitleLineHold      = 600 * time.Millisecond
+	subtitleFinalHold     = 2 * time.Second
+	subtitleQueueLimit    = 4 * 1024 * 1024
 )
 
 type subtitlePage struct {
@@ -33,14 +34,19 @@ type subtitlePageResult struct {
 
 type subtitleEntry struct {
 	frame                             SubtitleFrame
-	lastFrameKey                      string
 	sourceOffset, translationOffset   int
 	sourceContext, translationContext string
 	units                             float64
 }
 
-// The playback queue retains complete translation fragments. Consecutive short
-// fragments may share a page; only completed pages advance the byte cursors.
+type subtitleTransition struct {
+	page                                subtitlePage
+	frame                               SubtitleFrame
+	revealedSource, revealedTranslation string
+}
+
+// The queue owns unread text. Settled fragments may share a single visible line;
+// when the next fragment cannot fit, replace the whole line after its hold.
 type subtitlePlayback struct {
 	queue                 []*subtitleEntry
 	pending               map[string]SubtitleFrame
@@ -53,15 +59,22 @@ type subtitlePlayback struct {
 	pageDuration, elapsed time.Duration
 	revealedSource        string
 	revealedTranslation   string
-	continuable           bool
-	stopped               bool
 	lastTick              time.Time
 	queuedBytes           int
 	bufferWarned          bool
+	next                  *subtitleTransition
 }
 
 func cleanSubtitleText(text string) string {
-	return strings.TrimSpace(strings.ReplaceAll(text, "\x00", ""))
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
+		if r == 0 {
+			return -1
+		}
+		if unicode.IsSpace(r) {
+			return ' '
+		}
+		return r
+	}, text))
 }
 
 func (p *subtitlePlayback) Accept(frame SubtitleFrame) error {
@@ -92,7 +105,7 @@ func (p *subtitlePlayback) Accept(frame SubtitleFrame) error {
 		delete(p.seen, p.seenOrder[0])
 		p.seenOrder = p.seenOrder[1:]
 	}
-	p.queue = append(p.queue, &subtitleEntry{frame: frame, lastFrameKey: frame.Key, units: math.Max(subtitleReadingUnits(frame.Source), subtitleReadingUnits(frame.Translation))})
+	p.queue = append(p.queue, &subtitleEntry{frame: frame, units: math.Max(subtitleReadingUnits(frame.Source), subtitleReadingUnits(frame.Translation))})
 	p.queuedBytes += len(frame.Source) + len(frame.Translation)
 	if p.queuedBytes > subtitleQueueLimit && !p.bufferWarned {
 		p.bufferWarned = true
@@ -119,39 +132,57 @@ func (p *subtitlePlayback) Reflow() {
 	// A font/layout change replays only the current unread page. Completed
 	// pages retain their cursors and are neither replayed nor skipped.
 	p.pageFrame = SubtitleFrame{}
+	p.next = nil
 	p.revealedSource, p.revealedTranslation = "", ""
 	p.elapsed, p.lastTick = 0, time.Time{}
 }
 
 func (p *subtitlePlayback) PendingSeconds() int {
 	units := 0.0
-	for i, entry := range p.queue {
-		if i == 0 && (p.revealedSource != "" || p.revealedTranslation != "") {
-			sourceUnits := subtitleReadingUnits(entry.frame.Source[entry.sourceOffset:]) - subtitleReadingUnits(p.revealedSource)
-			translationUnits := subtitleReadingUnits(entry.frame.Translation[entry.translationOffset:]) - subtitleReadingUnits(p.revealedTranslation)
-			units += math.Max(sourceUnits, translationUnits)
-		} else {
-			units += entry.units
-		}
+	for _, entry := range p.queue {
+		units += entry.units
 	}
-	return max(0, int(math.Ceil(units/subtitleReadingRate))-int(p.elapsed/time.Second))
+	if p.pageFrame.Key != "" {
+		progress := math.Min(1, float64(p.elapsed)/float64(p.pageDuration))
+		units -= math.Max(subtitleReadingUnits(p.page.Source), subtitleReadingUnits(p.page.Translation)) * progress
+	}
+	return max(0, int(math.Ceil(units/subtitleReadingRate)))
 }
 
 func (p *subtitlePlayback) Tick(now time.Time, paginate func(string, string) (subtitlePage, error)) (SubtitleFrame, error) {
 	if p.pageFrame.Key != "" {
+		// Present the complete suffix for at least one frame before advancing.
+		// Same-line appends have no pause; only whole-line replacement waits.
+		revealed := p.elapsed >= p.pageDuration
 		delta := now.Sub(p.lastTick)
 		// A stalled UI or sleeping PC must not consume unseen reading time.
 		p.elapsed += max(0, min(delta, 100*time.Millisecond))
 		p.lastTick = now
-		if p.elapsed >= p.pageDuration {
-			p.extendShortPage(paginate)
+		var hold time.Duration
+		entry := p.queue[0]
+		if len(p.queue) == 1 && entry.sourceOffset+p.page.SourceBytes == len(entry.frame.Source) && entry.translationOffset+p.page.TranslationBytes == len(entry.frame.Translation) {
+			hold = subtitleFinalHold
+		} else if revealed {
+			if p.next == nil {
+				following := *entry
+				following.sourceOffset += p.page.SourceBytes
+				following.translationOffset += p.page.TranslationBytes
+				following.sourceContext, following.translationContext = p.page.Source, p.page.Translation
+				if following.sourceOffset == len(following.frame.Source) && following.translationOffset == len(following.frame.Translation) {
+					following = *p.queue[1]
+				}
+				var err error
+				p.next, err = p.preparePage(&following, p.pageFrame, paginate)
+				if err != nil {
+					return SubtitleFrame{}, err
+				}
+			}
+			// A new display key replaces the whole line instead of appending.
+			if p.next.frame.Key != p.pageFrame.Key {
+				hold = subtitleLineHold
+			}
 		}
-		hold := subtitlePageHold
-		if p.waitForContinuation() {
-			hold += subtitleContinuationWait
-		}
-		if p.elapsed >= p.pageDuration+hold {
-			entry := p.queue[0]
+		if revealed && p.elapsed >= p.pageDuration+hold {
 			entry.sourceOffset += p.page.SourceBytes
 			entry.translationOffset += p.page.TranslationBytes
 			entry.sourceContext, entry.translationContext = p.page.Source, p.page.Translation
@@ -169,35 +200,19 @@ func (p *subtitlePlayback) Tick(now time.Time, paginate func(string, string) (su
 	}
 	if p.pageFrame.Key == "" {
 		entry := p.queue[0]
-		page, err := paginate(entry.frame.Source[entry.sourceOffset:], entry.frame.Translation[entry.translationOffset:])
-		if err != nil {
-			return SubtitleFrame{}, err
-		}
-		if page.SourceBytes == 0 && page.TranslationBytes == 0 {
-			return SubtitleFrame{}, errors.New("字幕分页没有取得进展")
-		}
-		// Without word-level alignment, keep the shorter side as context on
-		// remaining pages, rather than fabricate a new source/translation pair.
-		if page.Source == "" && entry.sourceContext != "" {
-			contextPage, err := paginate(entry.sourceContext, "")
+		next := p.next
+		if next == nil {
+			var err error
+			next, err = p.preparePage(entry, SubtitleFrame{}, paginate)
 			if err != nil {
 				return SubtitleFrame{}, err
 			}
-			page.Source = contextPage.Source
 		}
-		if page.Translation == "" && entry.translationContext != "" {
-			contextPage, err := paginate("", entry.translationContext)
-			if err != nil {
-				return SubtitleFrame{}, err
-			}
-			page.Translation = contextPage.Translation
-		}
-		p.page = page
-		p.revealedSource, p.revealedTranslation = "", ""
-		p.continuable = subtitleCanContinue(entry, page)
+		p.next = nil
+		p.page, p.pageFrame = next.page, next.frame
+		p.revealedSource, p.revealedTranslation = next.revealedSource, next.revealedTranslation
 		p.pageNumber++
-		p.pageFrame = SubtitleFrame{Key: fmt.Sprintf("%s:page:%d", entry.frame.Key, p.pageNumber), Source: page.Source, Translation: page.Translation, Final: entry.frame.Final, Incomplete: entry.frame.Incomplete}
-		p.pageDuration = subtitleRevealDuration(page.Source, page.Translation)
+		p.pageDuration = subtitleRevealDuration(next.page.Source, next.page.Translation)
 		p.elapsed, p.lastTick = 0, now
 	}
 	frame := p.pageFrame
@@ -206,6 +221,55 @@ func (p *subtitlePlayback) Tick(now time.Time, paginate func(string, string) (su
 	frame.Translation = p.revealedTranslation + subtitleReadingPrefix(strings.TrimPrefix(frame.Translation, p.revealedTranslation), progress)
 	frame.PendingSeconds = p.PendingSeconds()
 	return frame, nil
+}
+
+func (p *subtitlePlayback) preparePage(entry *subtitleEntry, previous SubtitleFrame, paginate func(string, string) (subtitlePage, error)) (*subtitleTransition, error) {
+	page, err := paginate(entry.frame.Source[entry.sourceOffset:], entry.frame.Translation[entry.translationOffset:])
+	if err != nil {
+		return nil, err
+	}
+	if page.SourceBytes == 0 && page.TranslationBytes == 0 {
+		return nil, errors.New("字幕分页没有取得进展")
+	}
+	// Without word-level alignment, keep the shorter side as context on
+	// remaining pages, rather than fabricate a new source/translation pair.
+	if page.Source == "" && entry.sourceContext != "" {
+		contextPage, err := paginate(entry.sourceContext, "")
+		if err != nil {
+			return nil, err
+		}
+		page.Source = contextPage.Source
+	}
+	if page.Translation == "" && entry.translationContext != "" {
+		contextPage, err := paginate("", entry.translationContext)
+		if err != nil {
+			return nil, err
+		}
+		page.Translation = contextPage.Translation
+	}
+	next := SubtitleFrame{Key: fmt.Sprintf("%s:page:%d", entry.frame.Key, p.pageNumber+1), Source: page.Source, Translation: page.Translation, Final: entry.frame.Final, Incomplete: entry.frame.Incomplete}
+	var revealedSource, revealedTranslation string
+	if previous.Key != "" && previous.Final && !previous.Incomplete && entry.frame.Final && !entry.frame.Incomplete && (previous.Source == "") == (page.Source == "") {
+		contiguous := [2]bool{subtitleContiguousText(entry.frame.Source, entry.sourceOffset), subtitleContiguousText(entry.frame.Translation, entry.translationOffset)}
+		combined, fits, err := subtitleAppendLine(previous, page, paginate, contiguous)
+		if err != nil {
+			return nil, err
+		}
+		if fits {
+			next.Key = previous.Key
+			next.Source, next.Translation = combined.Source, combined.Translation
+			revealedSource = strings.TrimSuffix(next.Source, page.Source)
+			revealedTranslation = strings.TrimSuffix(next.Translation, page.Translation)
+		}
+	}
+	// An exhausted language is already read context, not a new suffix.
+	if page.SourceBytes == 0 {
+		revealedSource = next.Source
+	}
+	if page.TranslationBytes == 0 {
+		revealedTranslation = next.Translation
+	}
+	return &subtitleTransition{page: page, frame: next, revealedSource: revealedSource, revealedTranslation: revealedTranslation}, nil
 }
 
 type subtitleGlyph struct {
@@ -266,16 +330,13 @@ func splitSubtitlePage(source, translation string, fits func(int, string) bool) 
 		if len(glyphs[i]) == 0 {
 			continue
 		}
-		low, high := 1, 1
-		for high < len(glyphs[i]) && glyphs[i][high].units <= subtitlePageUnits {
-			high++
-		}
+		low, high := 1, len(glyphs[i])
 		if !fits(i, text[:glyphs[i][0].end]) {
 			return subtitlePage{}, errors.New("当前字幕区域无法容纳一个文字，请减小字号或调整显示器")
 		}
 		for low < high {
 			middle := (low + high + 1) / 2
-			if glyphs[i][middle-1].units <= subtitlePageUnits && fits(i, text[:glyphs[i][middle-1].end]) {
+			if fits(i, text[:glyphs[i][middle-1].end]) {
 				low = middle
 			} else {
 				high = middle - 1

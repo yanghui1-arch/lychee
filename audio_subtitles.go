@@ -99,7 +99,7 @@ func (s *audioSubtitleSession) Push(pcm []byte, level float64) error {
 		}
 	} else if !s.idle && now.Sub(s.lastSound) >= audioSubtitleIdleTimeout {
 		s.idle = true
-		s.subtitles.discard()
+		s.subtitles.pause()
 		s.retire()
 	}
 	if s.idle || s.pipeline == nil {

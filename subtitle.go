@@ -72,7 +72,6 @@ func (s *SubtitleService) Configure(settings SubtitleSettings) error {
 func (s *SubtitleService) setVisible(visible bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.playback.stopped = !visible
 	if s.visible == visible {
 		return nil
 	}
@@ -124,11 +123,32 @@ func (s *SubtitleService) discard() {
 	s.clearLocked(false)
 }
 
+// Silence retires reception and drops the backlog, but the visible line still
+// finishes revealing and gets its full reading hold. Manual stop uses discard.
+func (s *SubtitleService) pause() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.generation++
+	s.accepting = false
+	s.playback.pending, s.playback.pendingOrder = nil, nil
+	s.playback.next = nil
+	if s.playback.pageFrame.Key == "" {
+		s.playback = subtitlePlayback{}
+		return
+	}
+	entry := s.playback.queue[0]
+	entry.frame.Source = entry.frame.Source[:entry.sourceOffset+s.playback.page.SourceBytes]
+	entry.frame.Translation = entry.frame.Translation[:entry.translationOffset+s.playback.page.TranslationBytes]
+	entry.units = max(subtitleReadingUnits(entry.frame.Source[entry.sourceOffset:]), subtitleReadingUnits(entry.frame.Translation[entry.translationOffset:]))
+	s.playback.queue = []*subtitleEntry{entry}
+	s.playback.queuedBytes = len(entry.frame.Source) + len(entry.frame.Translation)
+}
+
 func (s *SubtitleService) clearLocked(accepting bool) {
 	s.generation++
 	s.accepting = accepting
-	// Clear settled pages, previews, continuation clocks and estimates together.
-	s.frame, s.playback = SubtitleFrame{}, subtitlePlayback{stopped: !s.visible}
+	// Clear settled pages, previews, line state and estimates together.
+	s.frame, s.playback = SubtitleFrame{}, subtitlePlayback{}
 	if err := s.window.Update(s.settings, s.frame, false); err != nil && s.emit != nil {
 		s.emit("subtitle:error", err.Error())
 	}
@@ -165,7 +185,7 @@ func (s *SubtitleService) interruptGeneration(generation uint64) bool {
 func (s *SubtitleService) start(ctx context.Context, emit func(string, any)) {
 	s.emit = emit
 	go func() {
-		ticker := time.NewTicker(40 * time.Millisecond)
+		ticker := time.NewTicker(subtitleFrameInterval)
 		defer ticker.Stop()
 		for {
 			select {

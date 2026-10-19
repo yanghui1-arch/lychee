@@ -12,7 +12,8 @@ import (
 )
 
 func readingTestPaginator(source, translation string) (subtitlePage, error) {
-	return splitSubtitlePage(source, translation, func(_ int, text string) bool { return subtitleReadingUnits(text) <= subtitlePageUnits })
+	const testLineUnits = 56.0
+	return splitSubtitlePage(source, translation, func(_ int, text string) bool { return subtitleReadingUnits(text) <= testLineUnits })
 }
 
 func withoutSpaces(text string) string {
@@ -36,7 +37,7 @@ func TestReadingQueueRetainsEveryPageDuringBursts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	seenPages := map[string]bool{}
+	seenPages := map[uint64]bool{}
 	sources, translations := map[string]string{}, map[string]string{}
 	var order []string
 	seenEntries := map[string]bool{}
@@ -46,8 +47,8 @@ func TestReadingQueueRetainsEveryPageDuringBursts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if frame.Key != "" && frame.Source == player.pageFrame.Source && frame.Translation == player.pageFrame.Translation && !seenPages[frame.Key] {
-			seenPages[frame.Key] = true
+		if frame.Key != "" && frame.Source == player.pageFrame.Source && frame.Translation == player.pageFrame.Translation && !seenPages[player.pageNumber] {
+			seenPages[player.pageNumber] = true
 			entry := player.queue[0]
 			id := entry.frame.Key
 			if !seenEntries[id] {
@@ -55,10 +56,10 @@ func TestReadingQueueRetainsEveryPageDuringBursts(t *testing.T) {
 				order = append(order, id)
 			}
 			if player.page.SourceBytes > 0 {
-				sources[id] += frame.Source
+				sources[id] += player.page.Source
 			}
 			if player.page.TranslationBytes > 0 {
-				translations[id] += frame.Translation
+				translations[id] += player.page.Translation
 			}
 		}
 		if !player.HasContent() {
@@ -77,7 +78,7 @@ func TestReadingQueueRetainsEveryPageDuringBursts(t *testing.T) {
 			t.Fatalf("unread text disappeared from %s: source=%q translation=%q", input.Key, sources[input.Key], translations[input.Key])
 		}
 	}
-	if len(seenPages) < 10 {
+	if len(seenPages) <= len(inputs) {
 		t.Fatal("large replies were not paginated")
 	}
 }
@@ -141,22 +142,19 @@ func TestReadingQueueCoalescesPreviewsAndDeduplicatesFinals(t *testing.T) {
 	}
 }
 
-func TestReadingPageHasMinimumHold(t *testing.T) {
+func TestCaptionFragmentsAppendOnNextFrameAfterFullReveal(t *testing.T) {
 	var player subtitlePlayback
-	_ = player.Accept(SubtitleFrame{Key: "one", Translation: "好", Final: true})
-	_ = player.Accept(SubtitleFrame{Key: "two", Translation: "下", Final: true})
+	_ = player.Accept(SubtitleFrame{Key: "one", Translation: "你好", Final: true})
+	_ = player.Accept(SubtitleFrame{Key: "two", Translation: "下文", Final: true})
 	now := time.Unix(0, 0)
 	first, _ := player.Tick(now, readingTestPaginator)
-	for i := 0; i < 23; i++ {
-		now = now.Add(50 * time.Millisecond)
-		frame, _ := player.Tick(now, readingTestPaginator)
-		if frame.Key != first.Key {
-			t.Fatal("short page disappeared before its 1.2-second reading interval")
-		}
+	frame := advanceCaption(t, &player, &now, player.pageDuration, readingTestPaginator)
+	if frame.Translation != "你好" || player.pageNumber != 1 {
+		t.Fatal("advanced before presenting the complete current fragment")
 	}
-	frame, _ := player.Tick(now.Add(50*time.Millisecond), readingTestPaginator)
-	if frame.Key == first.Key {
-		t.Fatal("reading queue did not advance after the hold")
+	frame = advanceCaption(t, &player, &now, subtitleFrameInterval, readingTestPaginator)
+	if player.pageNumber != 2 || frame.Key != first.Key || frame.Translation != "你好下" {
+		t.Fatalf("queued text did not append on the next frame: %+v", frame)
 	}
 }
 
@@ -191,7 +189,7 @@ func TestDiscardAndRestartRejectOldCaptionGeneration(t *testing.T) {
 }
 
 func TestForwardPaginationPreservesUnicodeAndEveryByte(t *testing.T) {
-	source := "👨‍👩‍👧‍👦 café with words. 中文👍🏽。 More text."
+	source := "  👨‍👩‍👧‍👦 café with words. 中文👍🏽。 More text.  "
 	translation := "第一段。第二段。第三段。最后不能丢失。"
 	originalSource, originalTranslation := source, translation
 	var combinedSource, combinedTranslation string
