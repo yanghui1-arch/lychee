@@ -20,21 +20,6 @@ const FACES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 // the trailing 0 makes the wrap from 9 back to 0 land on an identical face
 const WHEEL = [...FACES, 0];
 
-// the air around each face is what the mask fades through, so a resting digit stays solid
-const LINE = 1.5;
-// eased rather than a straight ramp; a linear fade of the same width reads as a hard edge
-const FADE = `linear-gradient(to bottom,
-  rgba(0,0,0,0) 0%,
-  rgba(0,0,0,0.06) 5.5%,
-  rgba(0,0,0,0.5) 11%,
-  rgba(0,0,0,0.94) 16.5%,
-  #000 22%,
-  #000 78%,
-  rgba(0,0,0,0.94) 83.5%,
-  rgba(0,0,0,0.5) 89%,
-  rgba(0,0,0,0.06) 94.5%,
-  rgba(0,0,0,0) 100%)`;
-
 const EASE = [0.22, 1, 0.36, 1] as const;
 const BOUNCE = 0.18;
 const LEAVE = { duration: 0.18, ease: EASE } as const;
@@ -66,8 +51,7 @@ const SIZER = FACES.map((face) => (
 const STACK = WHEEL.map((face, index) => (
   <span
     key={index}
-    className="flex items-center justify-center"
-    style={{ height: `${LINE}em` }}
+    className="flex h-[1.5em] items-center justify-center"
   >
     {face}
   </span>
@@ -265,13 +249,8 @@ const Digit = memo(function Digit({
       data-slot="animated-counter-digit"
       {...shifts(slot)}
       {...fades(slot.reduced)}
-      className="relative inline-grid overflow-hidden"
-      style={{
-        height: `${LINE}em`,
-        lineHeight: LINE,
-        maskImage: FADE,
-        WebkitMaskImage: FADE,
-      }}
+      // The mask eases through the air around each face, leaving resting digits solid.
+      className="relative inline-grid h-[1.5em] overflow-hidden leading-[1.5] [mask-image:linear-gradient(to_bottom,rgba(0,0,0,0)_0%,rgba(0,0,0,0.06)_5.5%,rgba(0,0,0,0.5)_11%,rgba(0,0,0,0.94)_16.5%,#000_22%,#000_78%,rgba(0,0,0,0.94)_83.5%,rgba(0,0,0,0.5)_89%,rgba(0,0,0,0.06)_94.5%,rgba(0,0,0,0)_100%)]"
     >
       {/* widest-face width, for fonts with no tabular figures */}
       {SIZER}

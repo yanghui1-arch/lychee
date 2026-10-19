@@ -39,18 +39,21 @@ export function LanguageSelect(props: LanguageSelectProps) {
         else if (next !== 'auto') props.onChange(next)
       }}
     >
-      <label className="language-label" htmlFor={id}>
+      <label
+        className="language-label shrink-0 text-[13px] text-[color:var(--subtle-foreground)]"
+        htmlFor={id}
+      >
         {props.label}
       </label>
       <SelectTrigger
         id={id}
-        className="language-trigger"
+        className="language-trigger data-[size=default]:h-[30px] dark:bg-background dark:hover:bg-background w-[144px] h-[30px] py-0 px-[13px] border border-border rounded-[12px] bg-background shadow-none text-[13px] gap-3.5 font-normal [&_svg]:w-[12px] [&_svg]:h-[12px] [&_svg]:text-[color:var(--subtle-foreground)]"
         aria-label={props.label}
       >
         <SelectValue />
       </SelectTrigger>
       <SelectContent
-        className="select-popup"
+        className="text-[12px] border-border rounded-[12px] [animation-duration:var(--motion-duration)] [animation-timing-function:var(--motion-ease)] data-ending-style:[animation-duration:var(--motion-close-duration)]"
         align="start"
         sideOffset={8}
         alignItemWithTrigger={false}

@@ -9,7 +9,7 @@ export function App() {
   return (
     <MotionConfig reducedMotion="user">
       <ToastProvider timeout={2800} limit={1}>
-        <main className="preview-stage">
+        <main className="min-h-svh bg-background">
           <TranslatorWorkspace />
         </main>
         <Toaster />

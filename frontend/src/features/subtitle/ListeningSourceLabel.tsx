@@ -87,7 +87,7 @@ export function ListeningSourceLabel({
   return (
     <span
       ref={viewport}
-      className="subtitle-listening-label"
+      className="[grid-column:2] block min-w-0 overflow-hidden whitespace-nowrap"
       title={`正在监听 ${label}`}
       onPointerEnter={() => {
         const current = animation.current
@@ -100,11 +100,12 @@ export function ListeningSourceLabel({
       }}
       onPointerLeave={() => animation.current?.play()}
     >
-      <span ref={track} className="subtitle-listening-track">
+      <span
+        ref={track}
+        className="inline-flex w-max [vertical-align:top] [@media(prefers-reduced-motion:reduce)]:block [@media(prefers-reduced-motion:reduce)]:max-w-full [@media(prefers-reduced-motion:reduce)]:overflow-hidden [@media(prefers-reduced-motion:reduce)]:text-ellipsis"
+      >
         <span>正在监听 {label} ·&nbsp;</span>
-        <span className="subtitle-listening-activity">
-          {hasSound ? '检测到声音' : '等待声音'}
-        </span>
+        <span className="w-[5em]">{hasSound ? '检测到声音' : '等待声音'}</span>
       </span>
     </span>
   )

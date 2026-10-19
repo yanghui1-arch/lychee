@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
@@ -26,7 +27,6 @@ import {
   type Language,
   type SourceLanguage,
 } from '@/features/translator/model'
-import './interpret.css'
 
 type Settings = {
   listenSource: SourceLanguage
@@ -99,11 +99,30 @@ function SettingSelect({
       value={value}
       onValueChange={(next) => next !== null && onChange(next)}
     >
-      <SelectTrigger className="interpret-select" aria-label={label}>
+      <SelectTrigger
+        className={cn(
+          "[&[data-slot='select-trigger']]:w-full [&[data-slot='select-trigger']]:h-[30px] [&[data-slot='select-trigger']]:border",
+          "[&[data-slot='select-trigger']]:border-[var(--interpret-field-border)] [&[data-slot='select-trigger']]:rounded-[9px]",
+          "[&[data-slot='select-trigger']]:bg-[var(--interpret-field)] [&[data-slot='select-trigger']]:text-[color:var(--interpret-ink)]",
+          "[&[data-slot='select-trigger']]:text-[13px] [&[data-slot='select-trigger']]:font-normal [&[data-slot='select-trigger']]:py-0",
+          "[&[data-slot='select-trigger']]:px-[11px] [&[data-slot='select-trigger']]:shadow-none",
+          "[&[data-slot='select-trigger']]:[transition:background_160ms_ease,_border-color_160ms_ease]",
+          "[&[data-slot='select-trigger']:hover]:[background:color-mix(_in_srgb,_var(--interpret-field),_var(--interpret-ink)_4%_)]",
+          "[&[data-slot='select-trigger']:hover]:border-[color-mix(_in_srgb,_var(--interpret-field-border),_var(--interpret-ink)_12%_)]",
+          "[&_[data-slot='select-value']]:block [&_[data-slot='select-value']]:overflow-hidden",
+          "[&_[data-slot='select-value']]:text-ellipsis [&_[data-slot='select-value']]:whitespace-nowrap",
+          "[&[data-slot='select-trigger']_>_svg]:w-[14px] [&[data-slot='select-trigger']_>_svg]:h-[14px]",
+          "[&[data-slot='select-trigger']_>_svg]:text-[color:#728198] [&[data-slot='select-trigger']_>_svg]:[stroke-width:2.5]",
+          "[@media(min-height:760px)]:[&[data-slot='select-trigger']]:text-[16px]",
+          "[@media(min-height:760px)]:[&[data-slot='select-trigger']]:h-[39px]",
+          "[@media(min-height:760px)]:[&[data-slot='select-trigger']]:rounded-[11px]",
+        )}
+        aria-label={label}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent
-        className="interpret-select-popup"
+        className="p-1 [&_[data-slot='select-item']]:min-h-[30px] [&_[data-slot='select-item']]:text-[13px] [&_[data-slot='select-item']]:pl-2"
         align="start"
         alignItemWithTrigger={false}
         sideOffset={6}
@@ -128,14 +147,23 @@ function SettingRow({
   children: ReactNode
 }) {
   return (
-    <div className="interpret-row">
+    <div
+      className={cn(
+        'grid grid-cols-[58px_minmax(90px,_1fr)_minmax(0,_308px)] items-center gap-x-5 min-h-[var(--interpret-row-height)]',
+        '[border-bottom:1px_solid_var(--interpret-line)] [@media(min-height:760px)]:grid-cols-[72px_minmax(110px,_1fr)_minmax(0,_42%)]',
+        '[@media(min-height:760px)]:gap-x-6.5 [@media(max-width:700px)]:grid-cols-[38px_75px_minmax(0,_1fr)]!',
+        '[@media(max-width:700px)]:gap-x-2.5!',
+      )}
+    >
       <Icon
-        className="interpret-row-icon"
+        className="justify-self-center w-[23px] h-[23px] text-[color:var(--interpret-ink)]"
         strokeWidth={1.8}
         aria-hidden="true"
       />
-      <span className="interpret-row-label">{label}</span>
-      <div className="interpret-row-control">{children}</div>
+      <span className="text-[color:var(--interpret-muted)] text-[13px] font-semibold [@media(min-height:760px)]:text-[16px]">
+        {label}
+      </span>
+      <div className="min-w-0 pt-1 pr-1 pb-1 pl-0">{children}</div>
     </div>
   )
 }
@@ -256,12 +284,35 @@ export function InterpretWorkspace() {
   }, [recording])
 
   return (
-    <section className="interpret-workspace" aria-label="同声传译设置">
+    <section
+      className={cn(
+        '[--interpret-ink:#102d52] [--interpret-muted:#5e708b] [--interpret-line:#e8edf4] [--interpret-field:#f0f3f7]',
+        '[--interpret-field-border:#e2e8f0] [--interpret-row-height:40px] w-[calc(100%_-_92px)] max-w-[1120px] my-0 mx-auto pt-0 px-0',
+        'pb-3 text-[color:var(--interpret-ink)] [align-self:start] dark:[--interpret-ink:#d6e5ff] dark:[--interpret-muted:#a5b3cc]',
+        'dark:[--interpret-line:#2d3444] dark:[--interpret-field:#242b38] dark:[--interpret-field-border:#343f52]',
+        '[@media(min-height:760px)]:[--interpret-row-height:54px] [@media(min-height:760px)]:pt-4',
+        '[@media(max-width:700px)]:w-[calc(100%_-_24px)] [@media(prefers-reduced-motion:reduce)]:[&_*]:[transition:none]!',
+        '[@media(prefers-reduced-motion:reduce)]:[&_*::before]:[transition:none]!',
+      )}
+      aria-label="同声传译设置"
+    >
       <section
         className="interpret-section"
         aria-labelledby="interpret-listen-title"
       >
-        <div className="interpret-section-header">
+        <div
+          className={cn(
+            'flex items-center gap-5 min-h-[64px] pb-1.5 [border-bottom:1px_solid_var(--interpret-line)] [&_img]:shrink-0 [&_img]:w-[56px]',
+            '[&_img]:h-[56px] [&_h1]:mt-0 [&_h1]:mx-0 [&_h1]:mb-0.5 [&_h1]:text-foreground [&_h1]:text-[24px] [&_h1]:font-bold',
+            '[&_h1]:leading-[1.25] [&_h1]:tracking-[-0.6px] [&_h2]:mt-0 [&_h2]:mx-0 [&_h2]:mb-0.5 [&_h2]:text-foreground [&_h2]:text-[24px]',
+            '[&_h2]:font-bold [&_h2]:leading-[1.25] [&_h2]:tracking-[-0.6px] [&_p]:flex [&_p]:items-center [&_p]:gap-2 [&_p]:m-0',
+            '[&_p]:text-[color:var(--interpret-muted)] [&_p]:text-[14px] [&_p]:font-semibold [&_p_svg]:w-[17px] [&_p_svg]:h-[17px]',
+            '[@media(min-height:760px)]:min-h-[84px] [@media(min-height:760px)]:gap-6.5 [@media(min-height:760px)]:pb-3',
+            '[@media(min-height:760px)]:[&_img]:w-[72px] [@media(min-height:760px)]:[&_img]:h-[72px]',
+            '[@media(min-height:760px)]:[&_h1]:text-[30px] [@media(min-height:760px)]:[&_h2]:text-[30px]',
+            '[@media(min-height:760px)]:[&_p]:text-[17px]',
+          )}
+        >
           <img
             src={listenIcon}
             width={58}
@@ -277,7 +328,7 @@ export function InterpretWorkspace() {
           </div>
         </div>
         <SettingRow icon={Globe} label="语言">
-          <div className="interpret-language-pair">
+          <div className="grid grid-cols-[minmax(0,_1fr)_20px_minmax(0,_1.04fr)] items-center gap-[7px]">
             <SettingSelect
               label="听别人 · 原语言"
               value={settings.listenSource}
@@ -287,7 +338,7 @@ export function InterpretWorkspace() {
               }
             />
             <ArrowRight
-              className="interpret-language-arrow"
+              className="w-[18px] h-[18px] justify-self-center text-[color:var(--interpret-muted)]"
               aria-hidden="true"
             />
             <SettingSelect
@@ -309,10 +360,22 @@ export function InterpretWorkspace() {
       </section>
 
       <section
-        className="interpret-section interpret-speak"
+        className="interpret-section mt-7 [@media(min-height:760px)]:mt-10.5"
         aria-labelledby="interpret-speak-title"
       >
-        <div className="interpret-section-header">
+        <div
+          className={cn(
+            'flex items-center gap-5 min-h-[64px] pb-1.5 [border-bottom:1px_solid_var(--interpret-line)] [&_img]:shrink-0 [&_img]:w-[56px]',
+            '[&_img]:h-[56px] [&_h1]:mt-0 [&_h1]:mx-0 [&_h1]:mb-0.5 [&_h1]:text-foreground [&_h1]:text-[24px] [&_h1]:font-bold',
+            '[&_h1]:leading-[1.25] [&_h1]:tracking-[-0.6px] [&_h2]:mt-0 [&_h2]:mx-0 [&_h2]:mb-0.5 [&_h2]:text-foreground [&_h2]:text-[24px]',
+            '[&_h2]:font-bold [&_h2]:leading-[1.25] [&_h2]:tracking-[-0.6px] [&_p]:flex [&_p]:items-center [&_p]:gap-2 [&_p]:m-0',
+            '[&_p]:text-[color:var(--interpret-muted)] [&_p]:text-[14px] [&_p]:font-semibold [&_p_svg]:w-[17px] [&_p_svg]:h-[17px]',
+            '[@media(min-height:760px)]:min-h-[84px] [@media(min-height:760px)]:gap-6.5 [@media(min-height:760px)]:pb-3',
+            '[@media(min-height:760px)]:[&_img]:w-[72px] [@media(min-height:760px)]:[&_img]:h-[72px]',
+            '[@media(min-height:760px)]:[&_h1]:text-[30px] [@media(min-height:760px)]:[&_h2]:text-[30px]',
+            '[@media(min-height:760px)]:[&_p]:text-[17px]',
+          )}
+        >
           <img
             src={speakIcon}
             width={58}
@@ -336,7 +399,7 @@ export function InterpretWorkspace() {
           />
         </SettingRow>
         <SettingRow icon={Globe} label="语言">
-          <div className="interpret-language-pair">
+          <div className="grid grid-cols-[minmax(0,_1fr)_20px_minmax(0,_1.04fr)] items-center gap-[7px]">
             <SettingSelect
               label="帮我说 · 我的语言"
               value={settings.speakSource}
@@ -344,7 +407,7 @@ export function InterpretWorkspace() {
               onChange={(value) => patch({ speakSource: value as Language })}
             />
             <ArrowRight
-              className="interpret-language-arrow"
+              className="w-[18px] h-[18px] justify-self-center text-[color:var(--interpret-muted)]"
               aria-hidden="true"
             />
             <SettingSelect
@@ -365,12 +428,19 @@ export function InterpretWorkspace() {
         </SettingRow>
         <SettingRow icon={Zap} label="触发方式">
           <div
-            className="interpret-trigger"
+            className={cn(
+              'w-full h-[30px] border border-[var(--interpret-field-border)] rounded-[9px] bg-[var(--interpret-field)]',
+              'text-[color:var(--interpret-ink)] text-[13px] font-normal relative flex isolate p-[1px] [&_button]:flex-1 [&_button]:min-w-0',
+              '[&_button]:py-0 [&_button]:px-2 [&_button]:border-0 [&_button]:rounded-[8px] [&_button]:bg-transparent',
+              '[&_button]:text-[color:var(--interpret-ink)] [&_button]:[font:inherit] [&_button]:[transition:color_160ms_ease]',
+              "[&_button[aria-checked='true']]:text-white dark:[&_button[aria-checked='true']]:text-[color:#10233e]",
+              '[@media(min-height:760px)]:text-[16px] [@media(min-height:760px)]:h-[39px] [@media(min-height:760px)]:rounded-[11px]',
+            )}
             role="radiogroup"
             aria-label="触发方式"
           >
             <motion.span
-              className="interpret-trigger-pill"
+              className="absolute z-[-1] [top:0] [bottom:0] [left:0] w-[50%] rounded-[9px] [background:linear-gradient(125deg,_#252525,_#050505_80%)] shadow-[0_1px_3px_#0000001a] dark:[background:linear-gradient(125deg,_#e1e8f3,_#fff)]"
               initial={false}
               animate={{ x: settings.trigger === 'voice' ? '0%' : '100%' }}
               transition={
@@ -382,6 +452,7 @@ export function InterpretWorkspace() {
             {(['voice', 'key'] as const).map((trigger) => (
               <button
                 key={trigger}
+                className="cursor-pointer focus-visible:[outline:2px_solid_var(--color-ring)] focus-visible:outline-offset-2"
                 type="button"
                 role="radio"
                 aria-checked={settings.trigger === trigger}
@@ -431,7 +502,7 @@ export function InterpretWorkspace() {
             <motion.div
               id={shortcutId}
               key="shortcut"
-              className="interpret-shortcut-reveal"
+              className="overflow-hidden"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -448,7 +519,16 @@ export function InterpretWorkspace() {
                 <button
                   ref={shortcutRef}
                   type="button"
-                  className="interpret-shortcut"
+                  className={cn(
+                    'w-full h-[30px] border border-[var(--interpret-field-border)] rounded-[9px] bg-[var(--interpret-field)]',
+                    'text-[color:var(--interpret-ink)] text-[13px] font-normal',
+                    'hover:[background:color-mix(_in_srgb,_var(--interpret-field),_var(--interpret-ink)_4%_)]',
+                    'hover:border-[color-mix(_in_srgb,_var(--interpret-field-border),_var(--interpret-ink)_12%_)] py-0 px-3',
+                    "[transition:background_160ms_ease,_border-color_160ms_ease] [&[data-recording='true']]:border-[#168bf2]",
+                    "[&[data-recording='true']]:bg-[#eaf5ff] [&[data-recording='true']]:text-[color:#1374c5] [@media(min-height:760px)]:text-[16px]",
+                    '[@media(min-height:760px)]:h-[39px] [@media(min-height:760px)]:rounded-[11px] cursor-pointer',
+                    'focus-visible:[outline:2px_solid_var(--color-ring)] focus-visible:outline-offset-2',
+                  )}
                   data-recording={recording}
                   aria-label={
                     recording
@@ -480,10 +560,18 @@ export function InterpretWorkspace() {
         </AnimatePresence>
       </section>
 
-      <div className="interpret-footer">
+      <div className="flex justify-center pt-3.5 [@media(min-height:760px)]:pt-5">
         <button
           type="button"
-          className="interpret-start"
+          className={cn(
+            'inline-flex justify-center items-center gap-3.5 w-[210px] h-[40px] py-0 px-6 border border-[#151515] rounded-[99px]',
+            '[background:linear-gradient(125deg,_#282828,_#030303_80%)] shadow-[0_8px_22px_#18263e0a] text-white text-[15px] font-normal',
+            '[transition:transform_160ms_ease,_box-shadow_160ms_ease] [&_svg]:w-[24px] [&_svg]:h-[24px] hover:shadow-[0_6px_18px_#18263e24]',
+            'hover:[transform:translateY(-1px)] active:[transform:translateY(0)_scale(0.98)]',
+            'dark:[background:linear-gradient(125deg,_#e1e8f3,_#fff)] dark:text-[color:#10233e] [@media(min-height:760px)]:w-[264px]',
+            '[@media(min-height:760px)]:h-[51px] [@media(min-height:760px)]:text-[18px] cursor-pointer',
+            'focus-visible:[outline:2px_solid_var(--color-ring)] focus-visible:outline-offset-2',
+          )}
           onClick={() => {
             if (settings.trigger === 'key' && !settings.shortcut) {
               shortcutRef.current?.focus()
