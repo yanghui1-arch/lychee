@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import {
   Bookmark,
@@ -77,16 +78,32 @@ export function RecordsPanel({
     <Tabs
       value={collection}
       onValueChange={(value) => setCollection(value as Collection)}
-      className="records-panel"
+      className="records-panel min-h-0 gap-2 pt-2.5 px-3 pb-2 bg-card border border-border rounded-[14px] [@media(max-width:760px)]:min-h-[210px]"
       aria-label="记录与收藏"
     >
-      <div className="records-toolbar">
-        <TabsList className="records-tabs" aria-label="记录分类">
+      <div className="h-[30px] shrink-0 flex items-center justify-between gap-3">
+        <TabsList
+          className={cn(
+            "h-[30px]! bg-transparent p-0 gap-[3px] [&_[data-slot='tabs-trigger']]:py-0 [&_[data-slot='tabs-trigger']]:px-3",
+            "[&_[data-slot='tabs-trigger']]:h-[30px] [&_[data-slot='tabs-trigger']]:text-[12px] [&_[data-slot='tabs-trigger']]:font-medium",
+            "[&_[data-slot='tabs-trigger']]:rounded-[12px] [&_[data-active]]:bg-muted [&_[data-active]]:text-foreground",
+            "[&_[data-active]]:shadow-none [@media(max-width:760px)]:[&_[data-slot='tabs-trigger']]:py-0",
+            "[@media(max-width:760px)]:[&_[data-slot='tabs-trigger']]:px-2",
+          )}
+          aria-label="记录分类"
+        >
           <TabsTrigger value="history">最近记录</TabsTrigger>
           <TabsTrigger value="favorites">收藏</TabsTrigger>
         </TabsList>
-        <div className="records-tools">
-          <div className="records-search">
+        <div className="flex gap-[7px]">
+          <div
+            className={cn(
+              'relative w-[174px] [&_svg]:absolute [&_svg]:[left:10px] [&_svg]:[top:9px] [&_svg]:w-[12px] [&_svg]:h-[12px]',
+              '[&_svg]:text-muted-foreground [&_svg]:pointer-events-none [&_input]:w-full [&_input]:h-[30px] [&_input]:pt-0 [&_input]:pr-3',
+              '[&_input]:pb-0 [&_input]:pl-[29px] [&_input]:border [&_input]:border-border [&_input]:rounded-[12px] [&_input]:bg-background',
+              '[&_input]:shadow-none [&_input]:text-[11px] [@media(max-width:760px)]:w-[140px]',
+            )}
+          >
             <Search aria-hidden="true" />
             <Input
               value={query}
@@ -98,7 +115,11 @@ export function RecordsPanel({
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button variant="ghost" size="icon" className="filter-button" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-[30px] h-[30px] border border-border rounded-[12px] bg-background text-[color:var(--subtle-foreground)] [&_svg]:w-[13px] [&_svg]:h-[13px] [&[data-active='true']]:bg-primary [&[data-active='true']]:text-primary-foreground [&[data-active='true']]:border-foreground"
+                />
               }
               aria-label="筛选原文语言"
               title="筛选原文语言"
@@ -124,16 +145,16 @@ export function RecordsPanel({
           </DropdownMenu>
         </div>
       </div>
-      <TabsContent value={collection} className="records-content">
+      <TabsContent value={collection} className="min-h-0 overflow-y-auto">
         <Table
-          className="records-table"
+          className="[table-layout:fixed] text-[12px] [&_tr]:h-[34px] [&_tr]:border-border [&_tr:last-child]:border-0 [&_td]:py-[3px] [&_td]:px-2 [@media(max-width:1000px)]:[&_tr]:h-[30px] [@media(max-width:1000px)]:text-[11px]"
           aria-label={collection === 'history' ? '最近记录' : '收藏记录'}
         >
           <colgroup>
-            <col className="record-source" />
-            <col className="record-result" />
-            <col className="record-time" />
-            <col className="record-actions" />
+            <col className="w-[36%] [@media(max-width:760px)]:w-[42%]" />
+            <col className="w-[44%] text-[color:var(--subtle-foreground)] [&_span]:block [&_span]:overflow-hidden [&_span]:text-ellipsis [@media(max-width:760px)]:w-[42%]" />
+            <col className="w-[15%] text-right text-muted-foreground text-[10px] [@media(max-width:760px)]:hidden" />
+            <col className="w-[5%] text-right [&_button]:w-[22px] [&_button]:h-[22px] [&_button]:text-[color:var(--subtle-foreground)] [&_svg]:w-[14px] [&_svg]:h-[14px] [@media(max-width:760px)]:w-[16%]" />
           </colgroup>
           <TableHeader className="sr-only">
             <TableRow>
@@ -147,10 +168,10 @@ export function RecordsPanel({
             {entries.length ? (
               entries.map((entry) => (
                 <TableRow key={entry.id}>
-                  <TableCell className="record-source">
+                  <TableCell className="w-[36%] [@media(max-width:760px)]:w-[42%]">
                     <Button
                       variant="ghost"
-                      className="record-restore"
+                      className="w-full h-auto p-0 block border-0 rounded-[2px] text-left text-[length:inherit] font-normal whitespace-nowrap overflow-hidden text-ellipsis"
                       onClick={() => onRestore(entry)}
                       title={entry.text}
                     >
@@ -158,17 +179,17 @@ export function RecordsPanel({
                     </Button>
                   </TableCell>
                   <TableCell
-                    className="record-result"
+                    className="w-[44%] text-[color:var(--subtle-foreground)] [&_span]:block [&_span]:overflow-hidden [&_span]:text-ellipsis [@media(max-width:760px)]:w-[42%]"
                     title={entry.result ?? RESULT_TEXT}
                   >
                     <span>{entry.result ?? RESULT_TEXT}</span>
                   </TableCell>
-                  <TableCell className="record-time">
+                  <TableCell className="w-[15%] text-right text-muted-foreground text-[10px] [@media(max-width:760px)]:hidden">
                     <time dateTime={entry.createdAt}>
                       {timeLabel(entry.createdAt)}
                     </time>
                   </TableCell>
-                  <TableCell className="record-actions">
+                  <TableCell className="w-[5%] text-right [&_button]:w-[22px] [&_button]:h-[22px] [&_button]:text-[color:var(--subtle-foreground)] [&_svg]:w-[14px] [&_svg]:h-[14px] [@media(max-width:760px)]:w-[16%]">
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={<Button variant="ghost" size="icon" />}
@@ -203,7 +224,10 @@ export function RecordsPanel({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="records-empty">
+                <TableCell
+                  colSpan={4}
+                  className="h-[120px] text-center text-muted-foreground"
+                >
                   {query || language !== 'all'
                     ? '未找到匹配的记录'
                     : collection === 'favorites'
