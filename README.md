@@ -49,7 +49,7 @@ Windows 64 位桌面端在「字幕 → 监听来源」默认选择「全局监�
 
 ```powershell
 $env:LYCHEE_AUDIO_HARDWARE_TEST = '1'
-go test -v -run TestApplicationAudioHardware -count=1 .
+go test -v -run TestApplicationAudioHardware -count=1 ./internal/app
 Remove-Item Env:LYCHEE_AUDIO_HARDWARE_TEST
 ```
 
@@ -69,7 +69,7 @@ bun run --cwd frontend dev
 发布时把远程默认地址写入客户端，无需用户设置环境变量：
 
 ```powershell
-wails build -ldflags '-X main.translationEndpoint=https://api.example.com/v1/translate'
+wails build -ldflags '-X github.com/yanghui1-arch/lychee/internal/app.translationEndpoint=https://api.example.com/v1/translate'
 ```
 
 `LYCHEE_TRANSLATE_URL` 的运行时配置优先于打包默认值。地址或路由变更只需修改该配置。桌面端由 Wails 的 Go HTTP 代理发送请求，浏览器开发预览由 Vite 代理发送请求，两者均通过同源 `/api/translate` 访问，避免服务端 CORS 配置差异。请求超时为 30 秒。
@@ -108,20 +108,19 @@ Windows 应用输出为 `build/bin/lychee.exe`。`build/` 中的平台配置属�
 ## 项目结构
 
 ```text
-main.go                         Wails 窗口配置与前端资源嵌入
-translation.go                  可配置的翻译服务 HTTP 代理
-audio*.go                       Windows 回环采集、应用枚举与监听生命周期
-speech.go / speech_protocol.go  有界语音流水线与服务器 WebSocket 协议
-speech_vad.go / vad_windows.go  语音段门控与 Silero ONNX 本地推理
-speech_captions.go               转写快照、译文分片与字幕显示窗口
-subtitle_playback.go             阅读队列、完整文本分页、定速呈现与停留时间
-speech_order.go                  多语音段返回结果排序
-speech_recovery.go               ASR 修订失败后的有限接续，不重放旧音频
-subtitle*.go                    字幕配置、平滑呈现与原生置顶窗口
-models/                         固定版本模型、推理 DLL、来源与授权
+main.go                         Wails 启动入口与前端构建资源嵌入
+internal/app/                   Go 后端实现与对应测试
+  app.go                        Wails 窗口配置、服务组装与生命周期
+  translation.go                可配置的翻译服务 HTTP 代理
+  audio*.go                     Windows 回环采集、应用枚举与监听生命周期
+  speech*.go                    语音流水线、协议、排序、恢复与字幕合并
+  vad*.go                       Silero ONNX 本地推理与平台适配
+  subtitle*.go                  字幕配置、阅读队列、分页与原生置顶窗口
+models/                         模型与推理 DLL 嵌入、固定版本来源与授权
 docs/subtitles.md               字幕部署、协议、资源边界与验证
 build/                          平台资源和打包配置
 frontend/
+  assets_windows.go             桌面字幕共用字体与授权嵌入
   src/
     app/                        应用入口与全局行为
     components/ui/              上游 UI 组件与适配
@@ -129,9 +128,13 @@ frontend/
     features/subtitle/          字幕设置、音量、实时预览与桌面桥接
     lib/                        桌面桥接与通用工具
     styles/                     设计变量、布局和动效
+  wailsjs/go/app/                Wails 生成的后端服务桥接
   wailsjs/runtime/               Wails 生成的运行时桥接
   licenses/                     上游组件与字体授权文本
 ```
+
+Go 后端集中在 `internal/app/`，仅供当前应用使用；对应测试与实现放在同一目录。
+开发和构建命令仍在仓库根目录运行。字体和模型由资源所在目录的 Go 包嵌入，仍随 exe 打包。
 
 工作区状态集中在 `useTranslator.ts`，存储于本机 `lychee.workspace.v1`。
 历史记录最多 20 条，收藏最多 50 条；浏览器预览和桌面运行使用各自的本机存储。
