@@ -64,7 +64,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Start-SubtitleTest.ps1 -Refre
 
 30 秒内最多允许三次接续，第四次明确停止并提示识别服务反复修订，防止无限重连。鉴权、积分、断网等其他错误仍正常停止。WebSocket 读取到的具体服务器错误会保留，避免被随后发送 `finish` 的通用写入失败覆盖。
 
-每段使用独立服务器 session，服务端 ASR 时间从零计起，跨段不保留服务端翻译上下文。短于两帧的语音可能被视为噪声；持续背景音乐也可能被 VAD 误判，阈值与尾部长度集中在 `speech_vad.go`。本地采集到首个音频块约需 200ms，另有前置音频的实时发送、网络、ASR 与翻译耗时；不能将 VAD 推理耗时当成端到端延迟。
+每段使用独立服务器 session，服务端 ASR 时间从零计起，跨段不保留服务端翻译上下文。短于两帧的语音可能被视为噪声；持续背景音乐也可能被 VAD 误判，阈值与尾部长度集中在 `internal/app/speech_vad.go`。本地采集到首个音频块约需 200ms，另有前置音频的实时发送、网络、ASR 与翻译耗时；不能将 VAD 推理耗时当成端到端延迟。
 
 ## 字幕快照与显示
 
@@ -85,18 +85,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Start-SubtitleTest.ps1 -Refre
 
 | 文件 | 职责 |
 | --- | --- |
-| `audio.go`、`audio_windows.go` | 采集生命周期、音量、停止与语音流水线连接 |
-| `audio_subtitles.go` | 音频静音宽限、字幕接收批次、旧处理取消与恢复 |
-| `vad_windows.go`、`models/` | 嵌入模型和运行库、初始化推理、循环状态与资源释放 |
-| `speech_vad.go` | 任意包重组、VAD 门控、前后缓冲 |
-| `speech.go` | 有界队列、语音段生命周期、并行排空与背压 |
-| `speech_protocol.go` | WebSocket 鉴权、握手、PCM 节拍、结果读取与超时 |
-| `speech_order.go` | 相邻语音段异步返回时的显示排序与队列上限 |
-| `speech_recovery.go` | 指定 ASR 修订错误的有限接续与可读提示 |
-| `speech_captions.go` | 原文修订、译文快照合并、按服务器 sequence 配对 |
-| `subtitle_playback.go` | 完整文本阅读队列、从头分页、字素级恒速呈现与停留时间 |
-| `subtitle_continuation.go` | 原译单行续接、实际布局完整性判断与吐字时长 |
-| `subtitle.go`、`subtitle_*windows.go` | 显示节拍与原生窗口位图、淡入、位置和字体 |
+| `internal/app/audio.go`、`internal/app/audio_windows.go` | 采集生命周期、音量、停止与语音流水线连接 |
+| `internal/app/audio_subtitles.go` | 音频静音宽限、字幕接收批次、旧处理取消与恢复 |
+| `internal/app/vad_windows.go`、`models/` | 嵌入模型和运行库、初始化推理、循环状态与资源释放 |
+| `internal/app/speech_vad.go` | 任意包重组、VAD 门控、前后缓冲 |
+| `internal/app/speech.go` | 有界队列、语音段生命周期、并行排空与背压 |
+| `internal/app/speech_protocol.go` | WebSocket 鉴权、握手、PCM 节拍、结果读取与超时 |
+| `internal/app/speech_order.go` | 相邻语音段异步返回时的显示排序与队列上限 |
+| `internal/app/speech_recovery.go` | 指定 ASR 修订错误的有限接续与可读提示 |
+| `internal/app/speech_captions.go` | 原文修订、译文快照合并、按服务器 sequence 配对 |
+| `internal/app/subtitle_playback.go` | 完整文本阅读队列、从头分页、字素级恒速呈现与停留时间 |
+| `internal/app/subtitle_continuation.go` | 原译单行续接、实际布局完整性判断与吐字时长 |
+| `internal/app/subtitle.go`、`internal/app/subtitle_*windows.go` | 显示节拍与原生窗口位图、淡入、位置和字体 |
 | `frontend/src/features/subtitle/` | 设置页、实时预览、音量与错误提示 |
 
 ## 检查与本次验证
@@ -118,6 +118,6 @@ wails build
 
 静音回归覆盖短暂停顿保留、低音量持续播放重置宽限、静音时丢弃积压和预览但保留当前片段的完整阅读时间、旧连接取消、空闲期间不反复初始化、恢复后新旧结果隔离、手动停止时拒绝迟到尾部结果，以及取消与恢复交错时旧批次不能重新启用。
 
-可选真实语音推理验证：将 16 kHz 单声道 PCM s16le WAV 文件路径设为 `LYCHEE_SPEECH_TEST_WAV`，运行 `go test -v -run TestSileroBundledModelInference -count=1 .`。本次用 Windows SpeechSynthesizer 生成英文语音，实际加载打包模型，检测到 245 帧语音；静音输入未达到语音阈值。该音频只用于测试，未加入仓库。
+可选真实语音推理验证：将 16 kHz 单声道 PCM s16le WAV 文件路径设为 `LYCHEE_SPEECH_TEST_WAV`，运行 `go test -v -run TestSileroBundledModelInference -count=1 ./internal/app`。本次用 Windows SpeechSynthesizer 生成英文语音，实际加载打包模型，检测到 245 帧语音；静音输入未达到语音阈值。该音频只用于测试，未加入仓库。
 
 相邻服务器已通过原 Docker 配置构建、启动，`/health/ready` 正常。后续本机手测准备使用服务器已有的 Alembic 迁移初始化了空开发库，并通过测试启动脚本创建专用账号与 24 小时会话；`/v1/users/me` 已验证凭证有效，初始测试余额为 16,500。完整 ASR 和翻译的自动验证仍使用模拟 WebSocket，尚未进行带积分结算的真实模型端到端联调。模型来源、固定版本、授权和哈希见 [models/README.md](../models/README.md)。
