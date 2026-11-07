@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"io/fs"
+	"os"
 	"path/filepath"
 
 	"github.com/wailsapp/wails/v2"
@@ -19,14 +20,18 @@ func Run(assets fs.FS) error {
 		return err
 	}
 	audio := newAudioService()
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return err
+	}
 	window := &WindowService{
-		closePreferencePath:  defaultClosePreferencePath(),
-		floatingPositionPath: filepath.Join(filepath.Dir(defaultClosePreferencePath()), "floating-position.json"),
+		floatingPositionPath: filepath.Join(configDir, "lychee", "floating-position.json"),
 	}
 	subtitles := newSubtitleService()
 	audio.subtitles = subtitles
 	audio.startSpeech = newSpeechPipeline
 	var stopPresentation context.CancelFunc
+	var stopTray func()
 	return wails.Run(&options.App{
 		Bind:          []interface{}{audio, subtitles, window},
 		OnBeforeClose: window.beforeClose,
@@ -34,6 +39,7 @@ func Run(assets fs.FS) error {
 			window.mu.Lock()
 			window.ctx = ctx
 			window.mu.Unlock()
+			stopTray = window.startTray()
 			audio.ctx = ctx
 			audio.emit = func(event string, data any) { wailsruntime.EventsEmit(ctx, event, data) }
 			presentationContext, cancel := context.WithCancel(ctx)
@@ -41,6 +47,9 @@ func Run(assets fs.FS) error {
 			subtitles.start(presentationContext, audio.emit)
 		},
 		OnShutdown: func(context.Context) {
+			if stopTray != nil {
+				stopTray()
+			}
 			audio.StopAudioCapture()
 			if stopPresentation != nil {
 				stopPresentation()

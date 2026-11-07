@@ -27,9 +27,7 @@ type WindowService struct {
 	workspace            bool
 	shown                bool
 	hoverRevision        int
-	closeMu              sync.Mutex
 	quitAllowed          atomic.Bool
-	closePreferencePath  string
 	floatingPositionPath string
 }
 
@@ -73,6 +71,9 @@ func (s *WindowService) OpenWorkspace() error {
 	if err := s.saveFloatingPositionLocked(); err != nil {
 		return err
 	}
+	// Windows refreshes taskbar membership when a window is hidden and shown.
+	wailsruntime.WindowHide(s.ctx)
+	defer wailsruntime.WindowShow(s.ctx)
 	if err := clearFloatingRegion(); err != nil {
 		return err
 	}

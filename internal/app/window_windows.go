@@ -53,9 +53,28 @@ func prepareFloatingWindow() error {
 	if previous, _, err := windowSetStyle.Call(uintptr(hwnd), styleIndex, style&^overlappedWindow|popup); previous == 0 {
 		return fmt.Errorf("设置悬浮球窗口: %w", err)
 	}
+	if err := setWindowTaskbarVisible(hwnd, false); err != nil {
+		return err
+	}
 	// Refresh the non-client frame without changing position, size, or z-order.
 	if ok, _, err := windowSetPos.Call(uintptr(hwnd), 0, 0, 0, 0, 0, 0x0037); ok == 0 {
 		return fmt.Errorf("更新悬浮球窗口: %w", err)
+	}
+	return nil
+}
+
+func setWindowTaskbarVisible(hwnd windows.HWND, visible bool) error {
+	const styleIndex = ^uintptr(19) // GWL_EXSTYLE = -20.
+	const appWindow, toolWindow = 0x00040000, 0x00000080
+	style, _, _ := windowGetStyle.Call(uintptr(hwnd), styleIndex)
+	style &^= appWindow | toolWindow
+	if visible {
+		style |= appWindow
+	} else {
+		style |= toolWindow
+	}
+	if previous, _, err := windowSetStyle.Call(uintptr(hwnd), styleIndex, style); previous == 0 {
+		return fmt.Errorf("设置任务栏图标: %w", err)
 	}
 	return nil
 }
@@ -130,7 +149,10 @@ func clearFloatingRegion() error {
 	if err != nil {
 		return err
 	}
-	return clearWindowRegion(hwnd)
+	if err := clearWindowRegion(hwnd); err != nil {
+		return err
+	}
+	return setWindowTaskbarVisible(hwnd, true)
 }
 
 func clearWindowRegion(hwnd windows.HWND) error {

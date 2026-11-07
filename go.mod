@@ -3,6 +3,7 @@ module github.com/yanghui1-arch/lychee
 go 1.25.0
 
 require (
+	github.com/energye/systray v1.0.3
 	github.com/go-ole/go-ole v1.3.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/moutend/go-wca v0.3.0

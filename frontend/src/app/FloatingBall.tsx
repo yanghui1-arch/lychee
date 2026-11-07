@@ -118,8 +118,8 @@ export function FloatingBall({ onOpen }: { onOpen: () => void }) {
           'invisible absolute top-0 right-0 z-20 flex size-[18px] cursor-pointer items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-0 outline-none transition-colors duration-150 will-change-[transform,opacity] hover:bg-[#c83f43] hover:text-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           !hovered && 'pointer-events-none',
         )}
-        aria-label="关闭选项"
-        title="关闭或最小化"
+        aria-label="最小化"
+        title="最小化"
         aria-hidden={!hovered}
         tabIndex={hovered ? 0 : -1}
         onClick={closeApp}
