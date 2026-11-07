@@ -1,9 +1,15 @@
 import { cn } from '@/lib/utils'
+import { useState } from 'react'
 import { Avatar } from '@base-ui/react/avatar'
 import { Menu } from '@base-ui/react/menu'
 import { Contrast, Moon, Sun } from 'lucide-react'
 import { isAppearance, useAppearance } from '@/app/useAppearance'
 import { Button } from '@/components/ui/button'
+import { isDesktop } from '@/lib/desktop'
+import {
+  GetCloseBehavior,
+  SetCloseBehavior,
+} from '../../../wailsjs/go/app/WindowService'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +19,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useToastManager } from '@/components/ui/toast'
@@ -23,11 +32,18 @@ const appearances = [
   { value: 'dark', label: '深色', Icon: Moon },
 ] as const
 
+const closeBehaviors = [
+  { value: 'ask', label: '每次询问' },
+  { value: 'minimize', label: '最小化' },
+  { value: 'quit', label: '关闭荔枝' },
+] as const
+
 // shortcut: Screenshot account data; replace with the account API when available.
 const previewAccount = { initial: 'Y', points: 14_320 }
 
 export function UserMenu() {
   const { appearance, setAppearance } = useAppearance()
+  const [closeBehavior, setCloseBehavior] = useState<string>('ask')
   const toastManager = useToastManager()
   const placeholder = (label: string) =>
     toastManager.add({
@@ -36,7 +52,13 @@ export function UserMenu() {
     })
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (open && isDesktop) {
+          void GetCloseBehavior().then(setCloseBehavior).catch(console.error)
+        }
+      }}
+    >
       <DropdownMenuTrigger
         render={
           <Button
@@ -112,6 +134,47 @@ export function UserMenu() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="user-menu-separator m-0 bg-[var(--user-menu-border)]" />
+        {isDesktop && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="h-[34px] rounded-[6px] px-2 text-[13px] text-[color:var(--user-menu-foreground)] focus:bg-[var(--user-menu-hover)] data-open:bg-[var(--user-menu-hover)]">
+              <span>关闭时</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {
+                  closeBehaviors.find(({ value }) => value === closeBehavior)
+                    ?.label
+                }
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent side="left" className="min-w-[132px]">
+              <DropdownMenuRadioGroup
+                aria-label="关闭时的操作"
+                value={closeBehavior}
+                onValueChange={(value) => {
+                  if (!closeBehaviors.some((choice) => choice.value === value))
+                    return
+                  void SetCloseBehavior(value)
+                    .then(() => setCloseBehavior(value))
+                    .catch(() => {
+                      toastManager.add({
+                        id: 'close-behavior-error',
+                        title: '关闭选项保存失败，请重试',
+                      })
+                    })
+                }}
+              >
+                {closeBehaviors.map(({ value, label }) => (
+                  <DropdownMenuRadioItem
+                    key={value}
+                    value={value}
+                    className="h-8 text-[13px]"
+                  >
+                    {label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
         <div className="flex items-center justify-between gap-4 pt-[9px] text-[13px] text-[color:var(--user-menu-foreground)]">
           <span id="user-menu-appearance-label">外观</span>
           <DropdownMenuRadioGroup
