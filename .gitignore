@@ -221,3 +221,7 @@ __marimo__/
 node_modules/
 /frontend/dist/
 /frontend/package.json.md5
+
+# Frontend source helpers are not build libraries.
+!frontend/src/lib/
+!frontend/src/lib/*.ts

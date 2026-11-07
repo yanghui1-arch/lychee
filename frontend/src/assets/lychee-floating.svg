@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Lychee 悬浮球图标">
+  <!-- Transparent canvas; circular background and lychee are editable vector shapes. -->
+  <circle data-part="background" cx="32" cy="32" r="27" fill="var(--floating-background, #FFFFFF)" stroke="var(--floating-border, #EBE7E4)" stroke-width="1.4"/>
+  <g transform="translate(32 33) scale(0.90)">
+    <path d="M -3 -12 C-15 -12 -15 -2 -12 7 C -9 17 8 18 12 7 C 16 -4 7 -14 -3 -12 Z" fill="#FFE3D8" stroke="#D67D68" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 0 -13 Q 0 -21 8 -22 Q 10 -13 2 -12" fill="#B9D8A8" stroke="#7FA46F" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M -5 -2 Q -9 3 -7 8" fill="none" stroke="#E8AD96" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
