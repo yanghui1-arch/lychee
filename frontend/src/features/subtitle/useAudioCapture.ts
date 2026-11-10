@@ -4,13 +4,13 @@ import {
   ListAudioSources,
   StartAudioCapture,
   StopAudioCapture,
-} from '../../../wailsjs/go/app/AudioService'
+} from '../../../wailsjs/go/audio/AudioService'
 import { EventsOn } from '../../../wailsjs/runtime/runtime'
-import type { app } from '../../../wailsjs/go/models'
+import type { audio, subtitle } from '../../../wailsjs/go/models'
 import {
   Configure,
   GetSubtitleFrame,
-} from '../../../wailsjs/go/app/SubtitleService'
+} from '../../../wailsjs/go/subtitle/SubtitleService'
 import { isDesktop } from '@/lib/desktop'
 import { useToastManager } from '@/components/ui/toast'
 
@@ -21,7 +21,7 @@ export type AudioOption = {
   icon?: string
 }
 type Status = Pick<
-  app.AudioStatus,
+  audio.AudioStatus,
   'state' | 'source' | 'session' | 'level' | 'error'
 >
 const initialStatus: Status = {
@@ -59,7 +59,7 @@ export function useAudioCapture() {
   const busy = useRef(false)
   const refreshing = useRef(false)
   const subtitleConfiguration = useRef({
-    pending: null as app.SubtitleSettings | null,
+    pending: null as subtitle.SubtitleSettings | null,
     running: false,
     task: Promise.resolve(),
   })
@@ -67,7 +67,7 @@ export function useAudioCapture() {
   const notify = (error: unknown) =>
     toast.add({ id: 'audio-error', title: String(error) })
 
-  function configureSubtitles(settings: app.SubtitleSettings) {
+  function configureSubtitles(settings: subtitle.SubtitleSettings) {
     if (!isDesktop) return Promise.resolve()
     const configuration = subtitleConfiguration.current
     configuration.pending = settings

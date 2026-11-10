@@ -20,7 +20,7 @@ await (await import('/tests/screenshot-functional.js')).runScreenshotFunctionalT
 
 该场景使用真实浏览器的 SVG、Canvas、PointerEvent 和 React 交互，模拟桌面桥接以覆盖默认工作区预览、无确认框选、调整尺寸、全部标注工具、虚线文字输入、撤销/恢复、颜色/字号/粗细、PNG、滚动入口、置顶及取消。原生截图与 F1 必须用 `wails build` 后的桌面程序验证。滚动图像去重与接缝另有 `TestScrollingScreenshotStitchesOnlyNewContent` 场景测试。
 
-复制图片的格式检查：`go test ./internal/app -run TestScreenshotClipboardImage -count=1`。此检查验证 Windows DIB 的尺寸、颜色和方向，不会改写系统剪贴板。浏览器场景模拟桌面桥接以验证复制按钮、Enter 和失败重试交互。
+复制图片的格式检查：`go test ./internal/screenshot -run TestScreenshotClipboardImage -count=1`。此检查验证 Windows DIB 的尺寸、颜色和方向，不会改写系统剪贴板。浏览器场景模拟桌面桥接以验证复制按钮、Enter 和失败重试交互。
 
 ## 工具栏视觉整理
 

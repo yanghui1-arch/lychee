@@ -1,16 +1,16 @@
-export namespace app {
-	
+export namespace audio {
+
 	export class AudioSource {
 	    id: string;
 	    label: string;
 	    kind: string;
 	    pid: number;
 	    icon?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new AudioSource(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -27,11 +27,11 @@ export namespace app {
 	    level: number;
 	    frames: number;
 	    error: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new AudioStatus(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.state = source["state"];
@@ -41,7 +41,7 @@ export namespace app {
 	        this.frames = source["frames"];
 	        this.error = source["error"];
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -60,6 +60,11 @@ export namespace app {
 		    return a;
 		}
 	}
+
+}
+
+export namespace screenshot {
+
 	export class ScreenshotRect {
 	    x: number;
 	    y: number;
@@ -117,6 +122,10 @@ export namespace app {
 		}
 	}
 
+}
+
+export namespace subtitle {
+
 	export class SubtitleFrame {
 	    key: string;
 	    source: string;
@@ -147,11 +156,11 @@ export namespace app {
 	    customX: number;
 	    customY: number;
 	    style: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new SubtitleSettings(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.source = source["source"];

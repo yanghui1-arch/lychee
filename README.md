@@ -55,7 +55,7 @@ Windows 64 位桌面端在「字幕 → 监听来源」默认选择「全局监�
 
 ```powershell
 $env:LYCHEE_AUDIO_HARDWARE_TEST = '1'
-go test -v -run TestApplicationAudioHardware -count=1 ./internal/app
+go test -v -run TestApplicationAudioHardware -count=1 ./internal/audio
 Remove-Item Env:LYCHEE_AUDIO_HARDWARE_TEST
 ```
 
@@ -75,7 +75,7 @@ bun run --cwd frontend dev
 发布时把远程默认地址写入客户端，无需用户设置环境变量：
 
 ```powershell
-wails build -ldflags '-X github.com/yanghui1-arch/lychee/internal/app.translationEndpoint=https://api.example.com/v1/translate'
+wails build -ldflags '-X github.com/yanghui1-arch/lychee/internal/translation.translationEndpoint=https://api.example.com/v1/translate'
 ```
 
 `LYCHEE_TRANSLATE_URL` 的运行时配置优先于打包默认值。地址或路由变更只需修改该配置。桌面端由 Wails 的 Go HTTP 代理发送请求，浏览器开发预览由 Vite 代理发送请求，两者均通过同源 `/api/translate` 访问，避免服务端 CORS 配置差异。请求超时为 30 秒。
@@ -115,13 +115,15 @@ Windows 应用输出为 `build/bin/lychee.exe`。`build/` 中的平台配置属�
 
 ```text
 main.go                         Wails 启动入口与前端构建资源嵌入
-internal/app/                   Go 后端实现与对应测试
+internal/                       Go 后端实现与对应测试
   app.go                        Wails 窗口配置、服务组装与生命周期
-  translation.go                可配置的翻译服务 HTTP 代理
-  audio*.go                     Windows 回环采集、应用枚举与监听生命周期
-  speech*.go                    语音流水线、协议、排序、恢复与字幕合并
-  vad*.go                       Silero ONNX 本地推理与平台适配
-  subtitle*.go                  字幕配置、阅读队列、分页与原生置顶窗口
+  window*.go、tray_windows.go   主窗口、悬浮球、托盘与关闭行为
+  audio/                        Windows 回环采集、应用枚举与监听生命周期
+  screenshot/                   截图、剪贴板、滚动拼接与快捷键
+  speech/                       语音流水线、协议、排序与恢复
+  subtitle/                     字幕合并、音频接续、阅读队列与原生窗口
+  translation/                  可配置的翻译服务 HTTP 代理
+  vad/                          Silero ONNX 推理、语音门控与平台适配
 models/                         模型与推理 DLL 嵌入、固定版本来源与授权
 docs/subtitles.md               字幕部署、协议、资源边界与验证
 build/                          平台资源和打包配置
@@ -134,12 +136,12 @@ frontend/
     features/subtitle/          字幕设置、音量、实时预览与桌面桥接
     lib/                        桌面桥接与通用工具
     styles/                     设计变量、布局和动效
-  wailsjs/go/app/                Wails 生成的后端服务桥接
+  wailsjs/go/                    Wails 生成的窗口、音频与字幕服务桥接
   wailsjs/runtime/               Wails 生成的运行时桥接
   licenses/                     上游组件与字体授权文本
 ```
 
-Go 后端集中在 `internal/app/`，仅供当前应用使用；对应测试与实现放在同一目录。
+Go 后端集中在 `internal/`，仅供当前应用使用；对应测试与实现放在同一目录。
 开发和构建命令仍在仓库根目录运行。字体和模型由资源所在目录的 Go 包嵌入，仍随 exe 打包。
 
 工作区状态集中在 `useTranslator.ts`，存储于本机 `lychee.workspace.v1`。
