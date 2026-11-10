@@ -32,6 +32,7 @@ func Run(assets fs.FS) error {
 	audio.startSpeech = newSpeechPipeline
 	var stopPresentation context.CancelFunc
 	var stopTray func()
+	var stopScreenshotHotkey func()
 	return wails.Run(&options.App{
 		Bind:          []interface{}{audio, subtitles, window},
 		OnBeforeClose: window.beforeClose,
@@ -40,6 +41,7 @@ func Run(assets fs.FS) error {
 			window.ctx = ctx
 			window.mu.Unlock()
 			stopTray = window.startTray()
+			stopScreenshotHotkey = window.startScreenshotHotkey()
 			audio.ctx = ctx
 			audio.emit = func(event string, data any) { wailsruntime.EventsEmit(ctx, event, data) }
 			presentationContext, cancel := context.WithCancel(ctx)
@@ -47,6 +49,9 @@ func Run(assets fs.FS) error {
 			subtitles.start(presentationContext, audio.emit)
 		},
 		OnShutdown: func(context.Context) {
+			if stopScreenshotHotkey != nil {
+				stopScreenshotHotkey()
+			}
 			if stopTray != nil {
 				stopTray()
 			}
