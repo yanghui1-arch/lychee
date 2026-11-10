@@ -6,6 +6,8 @@ import "errors"
 
 type screenshotSession struct{}
 
+func (s *WindowService) CopyScreenshot(string) error { return s.BeginScreenshot() }
+
 func (s *WindowService) BeginScreenshot() error {
 	return errors.New("截图暂仅支持 Windows 64 位")
 }

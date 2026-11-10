@@ -39,6 +39,12 @@
             PinScreenshot: async (w, h) => {
               calls.push(['pin', w, h])
             },
+            CopyScreenshot: async (data) => {
+              if (window.failCopy) throw Error('clipboard busy')
+              window.copied = data
+              calls.push('copy')
+              calls.push('cancel')
+            },
             SaveScreenshot: async (data) => {
               window.exported = data
               calls.push('save')

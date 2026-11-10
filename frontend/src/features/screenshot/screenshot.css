@@ -25,7 +25,7 @@
 }
 .screenshot-selection {
   position: absolute;
-  border: 3.5px solid #fb7185;
+  border: 3.5px solid #3b82f6;
   box-sizing: border-box;
   pointer-events: none;
   box-shadow: 0 0 0 1px #0003;
@@ -49,7 +49,7 @@
   height: 8px;
   transform: translate(-50%, -50%);
   border-radius: 2px;
-  border: 1px solid #f43f5e;
+  border: 1px solid #3b82f6;
   background: white;
   z-index: 2;
 }
@@ -70,98 +70,125 @@
   z-index: 4;
   user-select: text;
 }
-.screenshot-feedback {
-  max-width: 560px;
-  padding: 2px 4px;
-  color: #d4d4d8;
-  font-size: 11px;
-}
+/* Toolbar refinement follows unslop by Damir Sokolovsky (@heydamir),
+   CC BY 4.0 — https://heydamir.design/unslop */
 .screenshot-dock {
+  --toolbar-surface: #202023;
+  --toolbar-raised: #303034;
+  --toolbar-text: #ededed;
+  --toolbar-secondary: #a1a1a6;
+  --toolbar-muted: #85858b;
+  --toolbar-line: #ededed17;
+  --toolbar-accent: #93c5fd;
   position: fixed;
   width: max-content;
   max-width: calc(100vw - 16px);
-  padding: 7px 10px;
-  border: 1px solid #ffffff26;
-  border-radius: 14px;
-  background: #242428f5;
-  box-shadow: 0 12px 48px #0007;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0;
+  align-items: flex-start;
+  gap: 4px;
   z-index: 10;
+  color: var(--toolbar-text);
   font-size: 12px;
-  backdrop-filter: blur(20px);
+  line-height: 16px;
+}
+.screenshot-tools,
+.screenshot-options {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--toolbar-line);
+  border-radius: 10px;
+  background: var(--toolbar-surface);
+  box-shadow: 0 4px 12px #00000024;
+}
+.screenshot-tools {
+  height: 48px;
+  padding: 6px;
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #45454a transparent;
 }
 .screenshot-dock button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border: 0;
-  border-radius: 8px;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
   background: transparent;
-  color: #e4e4e7;
+  color: var(--toolbar-secondary);
+  font: inherit;
+  font-weight: 400;
   cursor: pointer;
   transition:
-    background 0.12s,
-    color 0.12s;
+    color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.screenshot-dock button:hover {
-  background: #ffffff15;
-  color: white;
+.screenshot-dock button:hover:not(:disabled) {
+  background: var(--toolbar-raised);
+  color: var(--toolbar-text);
 }
-.screenshot-dock button.active {
-  background: #f43f5e26;
-  color: #fda4af;
+.screenshot-dock button:active:not(:disabled) {
+  background: #3b3b40;
 }
-.screenshot-dock button.primary {
-  background: #f43f5e;
-  color: #fff;
+.screenshot-dock button:focus-visible {
+  outline: 2px solid var(--toolbar-accent);
+  outline-offset: 2px;
 }
 .screenshot-dock button:disabled {
-  opacity: 0.3;
+  opacity: 0.4;
   cursor: default;
 }
-.screenshot-tools,
-.screenshot-options {
-  display: flex;
-  align-items: center;
-  gap: 3px;
+.screenshot-tools button.active {
+  color: var(--toolbar-accent);
+  background: #27313c;
+  border-color: #93c5fd40;
 }
-.screenshot-tools {
-  flex-wrap: nowrap;
-  max-width: 100%;
-  overflow-x: auto;
-  justify-content: flex-start;
+.screenshot-dock svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
+}
+.screenshot-tools i,
+.screenshot-options i {
+  height: 16px;
+  width: 1px;
+  flex-shrink: 0;
+  background: var(--toolbar-line);
 }
 .screenshot-tools i {
-  height: 18px;
-  width: 1px;
-  background: #ffffff1a;
-  margin: 0 5px;
+  margin: 0 6px;
 }
 .screenshot-options {
-  padding: 7px 0 0;
-  margin-top: 7px;
+  height: 40px;
+  padding: 4px 8px;
   gap: 12px;
-  border-top: 1px solid #ffffff12;
-  align-self: stretch;
-  justify-content: flex-start;
 }
 .screenshot-colors,
 .screenshot-size-options,
 .screenshot-strokes {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 4px;
 }
-.screenshot-options i {
-  height: 18px;
-  width: 1px;
-  background: #ffffff1a;
+.screenshot-options button {
+  width: 28px;
+  height: 28px;
+}
+.screenshot-options button.active {
+  color: var(--toolbar-text);
+  background: var(--toolbar-raised);
+  border-color: var(--toolbar-line);
 }
 .screenshot-strokes span {
   display: block;
@@ -172,17 +199,41 @@
   display: none;
 }
 .screenshot-dock .screenshot-color {
-  width: 17px;
-  height: 17px;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+}
+.screenshot-color::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
   border-radius: 50%;
-  border: 1px solid #ffffff50;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px #ededed26;
 }
-.screenshot-color.chosen {
-  outline: 2px solid #fda4af;
-  outline-offset: 2px;
+.screenshot-color.chosen::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border: 1px solid var(--toolbar-accent);
+  border-radius: 50%;
 }
-.screenshot-close {
-  margin-left: 3px;
+.screenshot-feedback {
+  max-width: 480px;
+  padding: 4px 8px;
+  border: 1px solid var(--toolbar-line);
+  border-radius: 4px;
+  background: var(--toolbar-surface);
+  color: var(--toolbar-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .screenshot-dock button {
+    transition: none;
+  }
 }
 .screenshot-pin {
   position: fixed;
