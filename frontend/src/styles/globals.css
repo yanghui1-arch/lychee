@@ -53,6 +53,21 @@
   --motion-duration: 200ms;
   --motion-close-duration: 120ms;
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Grouped settings surfaces (components/ui/settings.tsx). */
+  --ui-group: #f6f6f7;
+  --ui-group-border: #0000000d;
+  --ui-group-shadow: 0 1px 2px #0000000a;
+  --ui-separator: #0000000f;
+  --ui-control: #ffffff;
+  --ui-control-hover: #fbfbfb;
+  --ui-control-border: #00000017;
+  --ui-control-shadow: 0 1px 1.5px #0000000f, 0 0 0 0.5px #00000008;
+  --ui-track: #0000000f;
+  --ui-track-inset: inset 0 1px 1.5px #0000000d;
+  --ui-switch-off: #00000021;
+  --ui-label: #1d1d1f;
+  --ui-secondary: #86868b;
+  --ui-live: #30a46c;
 }
 
 .dark {
@@ -74,6 +89,20 @@
   --user-menu-selected: #373b53;
   --user-avatar-background: #30334b;
   --user-avatar-foreground: var(--foreground);
+  --ui-group: #1d1e26;
+  --ui-group-border: #ffffff0f;
+  --ui-group-shadow: 0 1px 2px #0000004d;
+  --ui-separator: #ffffff0f;
+  --ui-control: #2c2e3a;
+  --ui-control-hover: #323442;
+  --ui-control-border: #ffffff12;
+  --ui-control-shadow: 0 1px 1.5px #00000059, inset 0 0.5px 0 #ffffff14;
+  --ui-track: #00000040;
+  --ui-track-inset: inset 0 1px 2px #00000040;
+  --ui-switch-off: #ffffff1f;
+  --ui-label: #e9eaf2;
+  --ui-secondary: #8e91a4;
+  --ui-live: #3dd68c;
 }
 
 @font-face {

@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
- <title>听别人_蓝色耳朵</title><desc>Inspired by the Lychee Translate UI. Glyph from Lucide Icons, ISC license; custom colors and circular background.</desc>
- <defs><radialGradient id="bg" cx="52%" cy="42%" r="73%"><stop offset="0%" stop-color="#EAF5FF"/><stop offset="100%" stop-color="#E4F1FF"/></radialGradient></defs>
- <circle cx="256" cy="256" r="246" fill="url(#bg)"/>
- <g fill="none" stroke="#168BF2" stroke-width="1.22" stroke-linecap="round" stroke-linejoin="round" transform="translate(52 52) scale(17)"><path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0"/><path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 1 0 4"/></g>
-</svg>
