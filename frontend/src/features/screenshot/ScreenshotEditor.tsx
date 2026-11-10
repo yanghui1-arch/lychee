@@ -27,6 +27,8 @@ import {
   CopyScreenshot,
   ScreenshotReady,
   ScrollScreenshot,
+  StopScrollScreenshot,
+  SetScrollScreenshotOverlay,
 } from '../../../wailsjs/go/app/WindowService'
 import {
   colors,
@@ -61,7 +63,7 @@ const tools = [
   { id: 'text', label: '文字', icon: Type },
 ] as const
 export function ScreenshotEditor({ initial }: { initial: Frame }) {
-  const [frame, setFrame] = useState(initial),
+  const [frame] = useState(initial),
     [selection, setSelection] = useState<Rect | null>(
       initial.workArea ?? {
         x: 0,
@@ -90,6 +92,8 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
       height: innerHeight,
     })
   const [scrollRegion, setScrollRegion] = useState<Rect | null>(null)
+  const [scrolling, setScrolling] = useState(false)
+  const [scrollPreview, setScrollPreview] = useState<Frame | null>(null)
   const stage = useRef<HTMLDivElement>(null),
     drag = useRef<Drag | null>(null),
     nextId = useRef(1)
@@ -222,6 +226,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
         void output('copy')
         return
       }
+      if (scrollRegion) return
       if (
         (e.ctrlKey || e.metaKey) &&
         ['z', 'y'].includes(e.key.toLowerCase())
@@ -238,7 +243,19 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     }
     addEventListener('keydown', key)
     return () => removeEventListener('keydown', key)
-  }, [selection, selected, busy, tool, text, pinned, frame, annotations])
+  }, [
+    selection,
+    selected,
+    busy,
+    tool,
+    text,
+    pinned,
+    frame,
+    annotations,
+    scrolling,
+    scrollRegion,
+    scrollPreview,
+  ])
   function point(e: PointerEvent) {
     const r = stage.current!.getBoundingClientRect()
     return {
@@ -268,7 +285,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     return settings
   }
   function down(e: PointerEvent<HTMLDivElement>) {
-    if (e.button !== 0 || busy || pinned || text) return
+    if (e.button !== 0 || busy || pinned || text || scrollRegion) return
     setMessage('')
     const p = point(e)
     const target = e.target as HTMLElement
@@ -551,14 +568,46 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     exporting.current = true
     const edited = commitText()
     setBusy(true)
+    setMessage('')
+    let stopped = false
     try {
-      const image = await exportScreenshot(frame, selection, edited)
+      let complete = scrollPreview
+      if (scrolling) {
+        setScrolling(false)
+        complete = await StopScrollScreenshot()
+        stopped = true
+        setScrollPreview(complete)
+      }
+      const targetFrame = scrollRegion && complete ? complete : frame
+      const targetSelection =
+        scrollRegion && complete
+          ? {
+              x: 0,
+              y: 0,
+              width: complete.width,
+              height: complete.height,
+            }
+          : selection
+      const targetAnnotations = scrollRegion
+        ? edited.map((a) => ({
+            ...a,
+            x: a.x - scrollRegion.x,
+            y: a.y - scrollRegion.y,
+            endX: a.endX === undefined ? undefined : a.endX - scrollRegion.x,
+            endY: a.endY === undefined ? undefined : a.endY - scrollRegion.y,
+          }))
+        : edited
+      const image = await exportScreenshot(
+        targetFrame,
+        targetSelection,
+        targetAnnotations,
+      )
       if (action === 'copy') {
         await CopyScreenshot(image)
       } else if (action === 'pin') {
         await PinScreenshot(
-          Math.round(selection.width),
-          Math.round(selection.height),
+          Math.round(targetSelection.width),
+          Math.round(targetSelection.height),
         )
         setPinned(image)
       } else {
@@ -566,18 +615,52 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
         if (path) setMessage('截图已保存')
       }
     } catch (e) {
+      if (scrolling && !stopped) setScrolling(true)
       setMessage(String(e))
     } finally {
       exporting.current = false
       setBusy(false)
     }
   }
+  useEffect(() => {
+    if (!scrolling || !scrollRegion) return
+    let disposed = false
+    let timer: ReturnType<typeof setTimeout>
+    const sample = async () => {
+      try {
+        const result = await ScrollScreenshot(
+          Math.round(scrollRegion.x),
+          Math.round(scrollRegion.y),
+          Math.round(scrollRegion.width),
+          Math.round(scrollRegion.height),
+        )
+        if (disposed) return
+        if (result.image) setScrollPreview(result)
+      } catch (e) {
+        if (!disposed) setMessage(String(e))
+      }
+      if (!disposed) timer = setTimeout(() => void sample(), 250)
+    }
+    timer = setTimeout(() => void sample(), 250)
+    return () => {
+      disposed = true
+      clearTimeout(timer)
+    }
+  }, [scrolling, scrollRegion])
+
   async function scroll() {
-    if (!selection) return
+    if (!selection || busy || scrollRegion) return
+    const r = selection
+    // Keep the native hole free of all preview UI, even at the screen edge.
+    if (Math.max(viewport.width - (r.x + r.width) * scale, r.x * scale) < 108) {
+      setMessage('请在选区右侧或左侧留出至少 108 像素，用于显示长图预览')
+      return
+    }
+    commitText()
     setBusy(true)
     setSelected(null)
     setCropSelected(false)
-    const r = scrollRegion || selection
+    setTool('select')
     try {
       const result = await ScrollScreenshot(
         Math.round(r.x),
@@ -585,27 +668,10 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
         Math.round(r.width),
         Math.round(r.height),
       )
-      history.current = { past: [], future: [] }
-      refreshHistory((n) => n + 1)
       setScrollRegion(r)
-      setFrame(result)
-      setSelection({ x: 0, y: 0, width: result.width, height: result.height })
-      setAnnotations((list) =>
-        scrollRegion
-          ? list
-          : list.map((a) => ({
-              ...a,
-              x: a.x - r.x,
-              y: a.y - r.y,
-              endX: a.endX === undefined ? undefined : a.endX - r.x,
-              endY: a.endY === undefined ? undefined : a.endY - r.y,
-            })),
-      )
-      setMessage(
-        result.added
-          ? '已拼接下一屏，可继续滚动'
-          : '没有检测到新的内容：可能已到底部，或选区中没有可滚动内容',
-      )
+      setScrollPreview(result)
+      setScrolling(true)
+      setMessage('')
     } catch (e) {
       setMessage(String(e))
     } finally {
@@ -634,6 +700,47 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
           : bottom - dockSize.height - 12,
     ),
   )
+  function scrollPreviewBounds(region: Rect): Rect {
+    const right = stageLeft + (region.x + region.width) * scale
+    const left = stageLeft + region.x * scale
+    const onRight = viewport.width - right >= 108
+    const width = Math.min(240, (onRight ? viewport.width - right : left) - 20)
+    const height = region.height * scale * 0.6
+    return {
+      x: onRight ? right + 12 : left - width - 12,
+      y: stageTop + (region.y + region.height) * scale - height,
+      width,
+      height,
+    }
+  }
+  useLayoutEffect(() => {
+    if (!scrollRegion || pinned) return
+    const bounds = scrollPreviewBounds(scrollRegion)
+    const sx = initial.width / viewport.width
+    const sy = initial.height / viewport.height
+    const x = Math.floor(bounds.x * sx),
+      y = Math.floor(bounds.y * sy)
+    void SetScrollScreenshotOverlay(
+      x,
+      y,
+      Math.ceil((bounds.x + bounds.width) * sx) - x,
+      Math.ceil((bounds.y + bounds.height) * sy) - y,
+      Math.max(1, Math.ceil(4 * Math.max(sx, sy))),
+      Math.floor(dockLeft * sx),
+      Math.floor(dockTop * sy),
+      Math.ceil((dockLeft + dockSize.width) * sx) - Math.floor(dockLeft * sx),
+      Math.ceil((dockTop + dockSize.height) * sy) - Math.floor(dockTop * sy),
+    ).catch((e) => setMessage(String(e)))
+  }, [
+    scrollRegion,
+    viewport.width,
+    viewport.height,
+    dockLeft,
+    dockTop,
+    dockSize.width,
+    dockSize.height,
+    pinned,
+  ])
   if (pinned)
     return (
       <div
@@ -775,7 +882,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
         </svg>
         {selection && (
           <div
-            className="screenshot-selection"
+            className={`screenshot-selection${scrollRegion ? ' is-scrolling' : ''}`}
             style={{
               left: selection.x * scale,
               top: selection.y * scale,
@@ -783,12 +890,14 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
               height: selection.height * scale,
             }}
           >
-            <span
-              className="screenshot-size"
-              style={{ top: selection.y * scale < 28 ? 4 : -27 }}
-            >
-              {Math.round(selection.width)} × {Math.round(selection.height)}
-            </span>
+            {!scrollRegion && (
+              <span
+                className="screenshot-size"
+                style={{ top: selection.y * scale < 28 ? 4 : -27 }}
+              >
+                {Math.round(selection.width)} × {Math.round(selection.height)}
+              </span>
+            )}
           </div>
         )}
         {bound &&
@@ -847,6 +956,27 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
           />
         )}
       </div>
+      {scrollRegion &&
+        scrollPreview &&
+        (() => {
+          const bounds = scrollPreviewBounds(scrollRegion)
+          return (
+            <aside
+              className="screenshot-scroll-preview"
+              aria-label="滚动截图预览"
+              style={{
+                left: bounds.x,
+                top: bounds.y,
+                width: bounds.width,
+                height: bounds.height,
+              }}
+            >
+              <div className="screenshot-scroll-image">
+                <img src={scrollPreview.image} alt="当前完整长截图" />
+              </div>
+            </aside>
+          )
+        })()}
       {ready && selection && selection.width >= 8 && selection.height >= 8 && (
         <div
           ref={dock}
@@ -872,7 +1002,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
                 title={label}
                 aria-label={label}
                 aria-pressed={tool === id}
-                disabled={busy}
+                disabled={busy || !!scrollRegion}
                 className={tool === id ? 'active' : ''}
                 onClick={() => chooseTool(id)}
               >
@@ -883,7 +1013,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
             <button
               aria-label="撤销"
               title="撤销 · Ctrl+Z"
-              disabled={!history.current.past.length || busy}
+              disabled={!history.current.past.length || busy || !!scrollRegion}
               onClick={undo}
             >
               <Undo2 size={16} strokeWidth={1.5} />
@@ -891,7 +1021,9 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
             <button
               aria-label="恢复"
               title="恢复 · Ctrl+Y"
-              disabled={!history.current.future.length || busy}
+              disabled={
+                !history.current.future.length || busy || !!scrollRegion
+              }
               onClick={redo}
             >
               <Redo2 size={16} strokeWidth={1.5} />
@@ -937,8 +1069,10 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
             </button>
             <button
               aria-label="滚动截图"
-              title="滚动截图 · 追加下一屏"
-              disabled={busy}
+              title="滚动截图 · 手动滚动并实时拼接"
+              aria-pressed={!!scrollRegion}
+              className={scrollRegion ? 'active' : ''}
+              disabled={busy || !!scrollRegion}
               onClick={() => void scroll()}
             >
               <ScanLine size={16} strokeWidth={1.5} />

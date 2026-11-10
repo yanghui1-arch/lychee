@@ -46,10 +46,18 @@ export function SetFloatingExpanded(arg1, arg2) {
   return window['go']['app']['WindowService']['SetFloatingExpanded'](arg1, arg2);
 }
 
+export function SetScrollScreenshotOverlay(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
+  return window['go']['app']['WindowService']['SetScrollScreenshotOverlay'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+}
+
 export function ShowFloating() {
   return window['go']['app']['WindowService']['ShowFloating']();
 }
 
 export function ShowWorkspace() {
   return window['go']['app']['WindowService']['ShowWorkspace']();
+}
+
+export function StopScrollScreenshot() {
+  return window['go']['app']['WindowService']['StopScrollScreenshot']();
 }

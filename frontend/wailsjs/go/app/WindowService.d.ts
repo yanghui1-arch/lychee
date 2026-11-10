@@ -24,6 +24,10 @@ export function ScrollScreenshot(arg1:number,arg2:number,arg3:number,arg4:number
 
 export function SetFloatingExpanded(arg1:boolean,arg2:number):Promise<void>;
 
+export function SetScrollScreenshotOverlay(arg1:number,arg2:number,arg3:number,arg4:number,arg5:number,arg6:number,arg7:number,arg8:number,arg9:number):Promise<void>;
+
 export function ShowFloating():Promise<void>;
 
 export function ShowWorkspace():Promise<void>;
+
+export function StopScrollScreenshot():Promise<screenshot.ScreenshotFrame>;

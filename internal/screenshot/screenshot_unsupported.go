@@ -21,3 +21,11 @@ func (s *Service) ScrollScreenshot(int, int, int, int) (ScreenshotFrame, error) 
 	return ScreenshotFrame{}, s.BeginScreenshot()
 }
 func (s *Service) StartHotkey() func() { return func() {} }
+
+func (s *Service) StopScrollScreenshot() (ScreenshotFrame, error) {
+	return ScreenshotFrame{}, s.BeginScreenshot()
+}
+
+func (s *Service) SetScrollScreenshotOverlay(int, int, int, int, int, int, int, int, int) error {
+	return s.BeginScreenshot()
+}
