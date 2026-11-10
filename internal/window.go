@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"sync"
 	"sync/atomic"
 
@@ -10,23 +11,25 @@ import (
 )
 
 const (
-	floatingSize    = 56
-	floatingOffsetX = 62
-	floatingOffsetY = 10
-	floatingWidth   = floatingOffsetX + floatingSize
-	floatingHeight  = floatingOffsetY + floatingSize
-	workspaceWidth  = 860
-	workspaceHeight = 600
-	mainWindowClass = "LycheeMainWindow"
+	floatingSize         = 56
+	floatingOffsetX      = 62
+	floatingOffsetY      = 10
+	floatingWidth        = floatingOffsetX + floatingSize
+	floatingHeight       = floatingOffsetY + floatingSize
+	workspaceWidth       = 860
+	workspaceHeight      = 600
+	mainWindowClass      = "LycheeMainWindow"
+	workspaceWindowClass = "LycheeWorkspaceWindow"
 )
 
-// WindowService expands the startup floating ball into the existing workspace.
+// WindowService keeps the floating ball separate from the reusable workspace.
 type WindowService struct {
 	screenshot           *screenshot.Service
 	ctx                  context.Context
 	mu                   sync.Mutex
 	expanded             bool
 	workspace            bool
+	workspaceProcess     *os.Process
 	shown                bool
 	hoverRevision        int
 	quitAllowed          atomic.Bool
@@ -70,21 +73,19 @@ func (s *WindowService) OpenWorkspace() error {
 	if s.workspace {
 		return nil
 	}
-	if err := s.saveFloatingPositionLocked(); err != nil {
-		return err
+	if s.screenshot.Active() {
+		return nil
 	}
-	// Windows refreshes taskbar membership when a window is hidden and shown.
-	wailsruntime.WindowHide(s.ctx)
-	defer wailsruntime.WindowShow(s.ctx)
-	if err := clearFloatingRegion(); err != nil {
-		return err
+	return s.openWorkspace()
+}
+
+func (s *WindowService) IsWorkspace() bool { return s.workspace }
+
+// Reveal the workspace only after its React view has painted.
+func (s *WindowService) ShowWorkspace() {
+	if s.workspace {
+		wailsruntime.WindowShow(s.ctx)
 	}
-	s.workspace = true
-	wailsruntime.WindowSetAlwaysOnTop(s.ctx, false)
-	wailsruntime.WindowSetSize(s.ctx, workspaceWidth, workspaceHeight)
-	wailsruntime.WindowSetMinSize(s.ctx, workspaceWidth, workspaceHeight)
-	wailsruntime.WindowCenter(s.ctx)
-	return nil
 }
 
 // SetFloatingExpanded only changes clipping. Hover must never move or resize the
@@ -106,7 +107,12 @@ func (s *WindowService) SetFloatingExpanded(expanded bool, revision int) error {
 	return nil
 }
 
-func (s *WindowService) BeginScreenshot() error           { return s.screenshot.BeginScreenshot() }
+func (s *WindowService) BeginScreenshot() error {
+	if s.workspace {
+		return nil
+	}
+	return s.screenshot.BeginScreenshot()
+}
 func (s *WindowService) CancelScreenshot() error          { return s.screenshot.CancelScreenshot() }
 func (s *WindowService) ScreenshotReady()                 { s.screenshot.ScreenshotReady() }
 func (s *WindowService) CopyScreenshot(data string) error { return s.screenshot.CopyScreenshot(data) }

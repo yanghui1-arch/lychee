@@ -26,15 +26,21 @@ var windowRectRegion = windowGDI32.NewProc("CreateRectRgn")
 var windowEllipseRegion = windowGDI32.NewProc("CreateEllipticRgn")
 var windowDeleteObject = windowGDI32.NewProc("DeleteObject")
 
-var findMainWindow = syscall.NewCallback(func(hwnd windows.HWND, result *windows.HWND) uintptr {
+type windowLookup struct {
+	pid   uint32
+	class string
+	hwnd  windows.HWND
+}
+
+var findApplicationWindow = syscall.NewCallback(func(hwnd windows.HWND, result *windowLookup) uintptr {
 	var pid uint32
-	if _, err := windows.GetWindowThreadProcessId(hwnd, &pid); err != nil || pid != uint32(os.Getpid()) {
+	if _, err := windows.GetWindowThreadProcessId(hwnd, &pid); err != nil || pid != result.pid {
 		return 1
 	}
 	var class [128]uint16
 	windowGetClass.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&class[0])), uintptr(len(class)))
-	if windows.UTF16ToString(class[:]) == mainWindowClass {
-		*result = hwnd
+	if windows.UTF16ToString(class[:]) == result.class {
+		result.hwnd = hwnd
 		return 0
 	}
 	return 1
@@ -82,13 +88,18 @@ func setWindowTaskbarVisible(hwnd windows.HWND, visible bool) error {
 }
 
 func mainWindowHandle() (windows.HWND, error) {
-	var hwnd windows.HWND
-	_ = windows.EnumWindows(findMainWindow, unsafe.Pointer(&hwnd))
-	runtime.KeepAlive(&hwnd)
+	hwnd := processWindowHandle(os.Getpid(), mainWindowClass)
 	if hwnd == 0 {
 		return 0, fmt.Errorf("荔枝窗口尚未就绪")
 	}
 	return hwnd, nil
+}
+
+func processWindowHandle(pid int, class string) windows.HWND {
+	result := windowLookup{pid: uint32(pid), class: class}
+	_ = windows.EnumWindows(findApplicationWindow, unsafe.Pointer(&result))
+	runtime.KeepAlive(&result)
+	return result.hwnd
 }
 
 // Wails reads absolute coordinates but sets positions relative to the work area.

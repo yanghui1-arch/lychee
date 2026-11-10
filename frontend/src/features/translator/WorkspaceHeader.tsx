@@ -1,7 +1,6 @@
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
-import { Minus, X, Scissors } from 'lucide-react'
-import { BeginScreenshot } from '../../../wailsjs/go/app/WindowService'
+import { Minus, X } from 'lucide-react'
 import lycheeLogo from '@/assets/lycheeLogo.webp'
 import { Button } from '@/components/ui/button'
 import { TabsIndicator, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -22,7 +21,7 @@ export function WorkspaceHeader() {
     void getPlatform().then(setPlatform).catch(console.error)
   }, [])
   const controls = [
-    { action: 'close', label: '关闭荔枝', Icon: X, onClick: closeApp },
+    { action: 'close', label: '关闭窗口', Icon: X, onClick: closeApp },
     {
       action: 'minimize',
       label: '最小化窗口',
@@ -100,16 +99,6 @@ export function WorkspaceHeader() {
         />
       </TabsList>
       <UserMenu />
-      <Button
-        className="absolute top-2 right-20 [--wails-draggable:no-drag]"
-        variant="ghost"
-        size="icon"
-        aria-label="截图"
-        title="截图 · F1"
-        onClick={() => void BeginScreenshot().catch(console.error)}
-      >
-        <Scissors size={16} />
-      </Button>
       <div
         className={cn(
           "flex items-center gap-1 [--wails-draggable:no-drag] [&[data-platform='darwin']]:mr-auto [&[data-platform='darwin']]:gap-0",
