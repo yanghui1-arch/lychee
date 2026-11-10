@@ -59,6 +59,34 @@ export async function runScreenshotFunctionalTests() {
     css.boxSizing === 'border-box' && parseFloat(css.borderLeftWidth) >= 3,
     'thicker border is inset and visible at full-screen edges',
   )
+  const stage = document.querySelector('.screenshot-stage'),
+    initialBox = stage.getBoundingClientRect()
+  stage.dispatchEvent(
+    new PointerEvent('pointerdown', {
+      bubbles: true,
+      pointerId: 1,
+      button: 0,
+      clientX: initialBox.left + 100,
+      clientY: initialBox.top + 100,
+    }),
+  )
+  await wait()
+  assert(
+    size() === '1280 × 752',
+    'full-screen click keeps preview instead of flashing 0x0',
+  )
+  stage.dispatchEvent(
+    new PointerEvent('pointerup', {
+      bubbles: true,
+      pointerId: 1,
+      button: 0,
+      clientX: initialBox.left + 100,
+      clientY: initialBox.top + 100,
+    }),
+  )
+  await wait()
+  assert(size() === '1280 × 752', 'single click confirms full work area')
+  await click('重新选择区域')
   await drag(100, 100, 800, 600, null, () =>
     assert(!handles(), 'no crop handles during drawing'),
   )
@@ -136,11 +164,7 @@ export async function runScreenshotFunctionalTests() {
     assert(!handles(), 'rectangle has no points while drawing'),
   )
   assert(!handles(), 'rectangle has no points after drawing')
-  await click('矩形')
-  assert(
-    !document.querySelector('.screenshot-options'),
-    'clicking active tool cancels it',
-  )
+  await click('圆形')
   await drag(
     200,
     200,
@@ -148,7 +172,10 @@ export async function runScreenshotFunctionalTests() {
     200,
     document.querySelector('rect[data-annotation]'),
   )
-  assert(handles() === 8, 'selecting rectangle reveals points')
+  assert(
+    handles() === 8,
+    'rectangle can be selected directly while ellipse tool is active',
+  )
   await drag(360, 280, 420, 320, document.querySelector('[data-corner="se"]'))
   assert(
     +document.querySelector('rect[data-annotation]').getAttribute('width') ===
@@ -156,16 +183,17 @@ export async function runScreenshotFunctionalTests() {
     'resize explicitly selected rectangle',
   )
   await click('圆形')
+  await click('圆形')
   assert(
     button('粗细：中').getAttribute('aria-pressed') === 'true' &&
-      button('颜色 #f43f5e').getAttribute('aria-pressed') === 'true',
+      button('颜色 #3b82f6').getAttribute('aria-pressed') === 'true',
     'tools retain independent settings',
   )
   await drag(450, 180, 580, 310, null, () =>
     assert(!handles(), 'ellipse has no points while drawing'),
   )
   assert(!handles(), 'ellipse has no points after drawing')
-  await click('圆形')
+  await click('箭头')
   await drag(
     500,
     220,
@@ -173,9 +201,17 @@ export async function runScreenshotFunctionalTests() {
     220,
     document.querySelector('ellipse[data-annotation]'),
   )
-  assert(handles() === 8, 'selecting ellipse reveals points')
-  await click('箭头')
+  assert(
+    handles() === 8,
+    'ellipse can be selected directly while arrow tool is active',
+  )
   await drag(650, 450, 400, 350)
+  assert(
+    document
+      .querySelector('g[data-annotation]')
+      .getAttribute('stroke-width') === '2',
+    'arrow draws small even after editing another shape',
+  )
   assert(
     !handles() &&
       +document.querySelector('line[data-annotation]').getAttribute('x2') ===
@@ -263,6 +299,44 @@ export async function runScreenshotFunctionalTests() {
     image.width === 800 && image.height === 550,
     'PNG exports selection and multiline annotations',
   )
+  assert(
+    !button('保存截图').classList.contains('primary'),
+    'save button has neutral styling',
+  )
+  await click('复制截图')
+  assert(
+    window.copied?.startsWith('data:image/png;base64,') &&
+      window.calls.includes('copy'),
+    'copy button sends annotated image',
+  )
+  const copied = new Image()
+  copied.src = window.copied
+  await copied.decode()
+  assert(
+    copied.width === 800 && copied.height === 550,
+    'clipboard payload uses cropped dimensions',
+  )
+  const copies = window.calls.filter((c) => c === 'copy').length
+  window.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }),
+  )
+  await wait()
+  assert(
+    window.calls.filter((c) => c === 'copy').length === copies + 1,
+    'Enter copies completed screenshot',
+  )
+  window.failCopy = true
+  await click('复制截图')
+  assert(
+    !!document.querySelector('.screenshot-editor') &&
+      document.body.innerText.includes('clipboard busy'),
+    'clipboard failure keeps editor available for retry',
+  )
+  window.failCopy = false
   assert(button('翻译（即将上线）').disabled, 'translation remains placeholder')
   await click('置顶截图')
   assert(!!document.querySelector('.screenshot-pin'), 'pin screenshot')

@@ -10,6 +10,10 @@ export function CancelScreenshot() {
   return window['go']['app']['WindowService']['CancelScreenshot']();
 }
 
+export function CopyScreenshot(arg1) {
+  return window['go']['app']['WindowService']['CopyScreenshot'](arg1);
+}
+
 export function OpenWorkspace() {
   return window['go']['app']['WindowService']['OpenWorkspace']();
 }

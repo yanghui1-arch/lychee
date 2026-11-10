@@ -6,6 +6,8 @@ export function BeginScreenshot():Promise<void>;
 
 export function CancelScreenshot():Promise<void>;
 
+export function CopyScreenshot(arg1:string):Promise<void>;
+
 export function OpenWorkspace():Promise<void>;
 
 export function PinScreenshot(arg1:number,arg2:number):Promise<void>;

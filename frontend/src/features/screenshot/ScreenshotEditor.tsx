@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   Circle,
   Download,
+  Copy,
   Languages,
   Pin,
   RectangleHorizontal,
@@ -23,6 +24,7 @@ import {
   CancelScreenshot,
   PinScreenshot,
   SaveScreenshot,
+  CopyScreenshot,
   ScreenshotReady,
   ScrollScreenshot,
 } from '../../../wailsjs/go/app/WindowService'
@@ -45,6 +47,7 @@ type Drag = {
   corner?: string
   id?: number
   before: EditSnapshot
+  started?: boolean
 }
 type EditSnapshot = {
   selection: Rect | null
@@ -69,7 +72,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     ),
     [ready, setReady] = useState(false)
   const [tool, setTool] = useState<Tool>('select'),
-    [color, setColor] = useState(colors[0]),
+    [color, setColor] = useState(colors[3]),
     [stroke, setStroke] = useState(4),
     [fontSize, setFontSize] = useState(26)
   const [annotations, setAnnotations] = useState<Annotation[]>([]),
@@ -110,6 +113,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     : cropSelected
       ? selection
       : null
+  const exporting = useRef(false)
   const textInput = useRef<HTMLTextAreaElement>(null)
   const textWidth = (() => {
     if (!text || !selection) return 0
@@ -213,6 +217,11 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
         e.target instanceof HTMLInputElement
       )
         return
+      if (e.key === 'Enter' && !e.isComposing && !pinned) {
+        e.preventDefault()
+        void output('copy')
+        return
+      }
       if (
         (e.ctrlKey || e.metaKey) &&
         ['z', 'y'].includes(e.key.toLowerCase())
@@ -229,7 +238,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     }
     addEventListener('keydown', key)
     return () => removeEventListener('keydown', key)
-  }, [selection, selected, busy, tool, text, pinned])
+  }, [selection, selected, busy, tool, text, pinned, frame, annotations])
   function point(e: PointerEvent) {
     const r = stage.current!.getBoundingClientRect()
     return {
@@ -241,6 +250,22 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     if (id !== undefined)
       setAnnotations((a) => a.map((x) => (x.id === id ? { ...x, ...r } : x)))
     else setSelection(r)
+  }
+  function toolSettings(id: Tool) {
+    return (
+      preferences.current[id] ?? {
+        color: colors[3],
+        stroke: id === 'arrow' ? 2 : 4,
+        fontSize: 26,
+      }
+    )
+  }
+  function restoreToolSettings() {
+    const settings = toolSettings(tool)
+    setColor(settings.color)
+    setStroke(settings.stroke)
+    setFontSize(settings.fontSize)
+    return settings
   }
   function down(e: PointerEvent<HTMLDivElement>) {
     if (e.button !== 0 || busy || pinned || text) return
@@ -255,7 +280,29 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
       p.y >= selection.y &&
       p.y <= selection.y + selection.height
     const before = snapshot.current
+    const annotation = target.closest('[data-annotation]') as HTMLElement | null
+    const id = Number(annotation?.dataset.annotation)
+    if (ready && annotation && Number.isFinite(id) && !e.altKey) {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      setInteracting(true)
+      const a = annotations.find((a) => a.id === id)!
+      setSelected(id)
+      setCropSelected(false)
+      setColor(a.color)
+      setStroke(a.stroke)
+      setFontSize(a.fontSize)
+      drag.current = {
+        startX: p.x,
+        startY: p.y,
+        rect: { ...a },
+        kind: 'move',
+        id,
+        before,
+      }
+      return
+    }
     if (ready && tool === 'text' && inside && !corner) {
+      restoreToolSettings()
       e.preventDefault()
       setSelected(null)
       setCropSelected(false)
@@ -276,29 +323,10 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
       }
       return
     }
-    const annotation = target.closest('[data-annotation]') as HTMLElement | null
-    const id = Number(annotation?.dataset.annotation)
-    if (ready && tool === 'select' && annotation && Number.isFinite(id)) {
-      const a = annotations.find((a) => a.id === id)!
-      setSelected(id)
-      setCropSelected(false)
-      setColor(a.color)
-      setStroke(a.stroke)
-      setFontSize(a.fontSize)
-      drag.current = {
-        startX: p.x,
-        startY: p.y,
-        rect: { ...a },
-        kind: 'move',
-        id,
-        before,
-      }
-      return
-    }
     if (!ready || (tool === 'select' && !inside)) {
       setCropSelected(false)
       setSelected(null)
-      setSelection({ x: p.x, y: p.y, width: 0, height: 0 })
+      setInteracting(false)
       drag.current = {
         startX: p.x,
         startY: p.y,
@@ -321,6 +349,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
       return
     }
     if (!inside || tool === 'select' || tool === 'text') return
+    const settings = restoreToolSettings()
     const a: Annotation = {
       id: nextId.current++,
       type: tool,
@@ -328,9 +357,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
       y: p.y,
       width: 0,
       height: 0,
-      color,
-      stroke,
-      fontSize,
+      ...settings,
       endX: p.x,
       endY: p.y,
     }
@@ -378,6 +405,12 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     const p = point(e)
     if (d.kind === 'new' || d.kind === 'draw') {
       const r = normalized(d.startX, d.startY, p.x, p.y)
+      if (d.kind === 'new' && (r.width < 8 || r.height < 8)) return
+      if (d.kind === 'new' && !d.started) {
+        if (r.width * scale < 4 || r.height * scale < 4) return
+        d.started = true
+        setInteracting(true)
+      }
       if (d.id !== undefined)
         setAnnotations((a) =>
           a.map((x) =>
@@ -484,11 +517,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     setTool(next)
     setSelected(null)
     setCropSelected(false)
-    const settings = preferences.current[next] ?? {
-      color: colors[0],
-      stroke: 4,
-      fontSize: 26,
-    }
+    const settings = toolSettings(next)
     setColor(settings.color)
     setStroke(settings.stroke)
     setFontSize(settings.fontSize)
@@ -517,13 +546,16 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
       )
     }
   }
-  async function output(pin = false) {
-    if (!selection) return
+  async function output(action: 'save' | 'pin' | 'copy' = 'save') {
+    if (!selection || exporting.current) return
+    exporting.current = true
     const edited = commitText()
     setBusy(true)
     try {
       const image = await exportScreenshot(frame, selection, edited)
-      if (pin) {
+      if (action === 'copy') {
+        await CopyScreenshot(image)
+      } else if (action === 'pin') {
         await PinScreenshot(
           Math.round(selection.width),
           Math.round(selection.height),
@@ -536,6 +568,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     } catch (e) {
       setMessage(String(e))
     } finally {
+      exporting.current = false
       setBusy(false)
     }
   }
@@ -843,7 +876,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
                 className={tool === id ? 'active' : ''}
                 onClick={() => chooseTool(id)}
               >
-                <Icon size={19} strokeWidth={1.8} />
+                <Icon size={16} strokeWidth={1.5} />
               </button>
             ))}
             <i />
@@ -853,7 +886,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
               disabled={!history.current.past.length || busy}
               onClick={undo}
             >
-              <Undo2 size={19} />
+              <Undo2 size={16} strokeWidth={1.5} />
             </button>
             <button
               aria-label="恢复"
@@ -861,11 +894,11 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
               disabled={!history.current.future.length || busy}
               onClick={redo}
             >
-              <Redo2 size={19} />
+              <Redo2 size={16} strokeWidth={1.5} />
             </button>
             <button
               aria-label="重新选择区域"
-              title="重新选择区域"
+              title="重新框选"
               disabled={busy || !!scrollRegion}
               onClick={() => {
                 remember()
@@ -884,41 +917,48 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
                 setCropSelected(false)
               }}
             >
-              <Crop size={19} />
+              <Crop size={16} strokeWidth={1.5} />
             </button>
             <i />
             <button
               aria-label="置顶截图"
               title="置顶截图"
               disabled={busy}
-              onClick={() => void output(true)}
+              onClick={() => void output('pin')}
             >
-              <Pin size={19} />
+              <Pin size={16} strokeWidth={1.5} />
             </button>
             <button
               aria-label="翻译（即将上线）"
-              title="翻译（即将上线）"
+              title="翻译 · 暂未开放"
               disabled
             >
-              <Languages size={19} />
+              <Languages size={16} strokeWidth={1.5} />
             </button>
             <button
               aria-label="滚动截图"
-              title="向下滚动并拼接一屏"
+              title="滚动截图 · 追加下一屏"
               disabled={busy}
               onClick={() => void scroll()}
             >
-              <ScanLine size={19} />
+              <ScanLine size={16} strokeWidth={1.5} />
             </button>
             <i />
             <button
               aria-label="保存截图"
               title="保存 PNG"
               disabled={busy}
-              className="primary"
               onClick={() => void output()}
             >
-              <Download size={19} />
+              <Download size={16} strokeWidth={1.5} />
+            </button>
+            <button
+              aria-label="复制截图"
+              title="复制截图"
+              disabled={busy}
+              onClick={() => void output('copy')}
+            >
+              <Copy size={16} strokeWidth={1.5} />
             </button>
             <button
               className="screenshot-close"
@@ -927,20 +967,24 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
               disabled={busy}
               onClick={() => void CancelScreenshot()}
             >
-              <X size={18} />
+              <X size={16} strokeWidth={1.5} />
             </button>
           </div>
           {optionTool && (
             <div className="screenshot-options" aria-label="当前工具选项">
               <div className="screenshot-colors" role="group" aria-label="颜色">
-                {colors.map((c) => (
+                {colors.map((c, index) => (
                   <button
                     key={c}
                     aria-label={`颜色 ${c}`}
-                    title={c}
+                    title={
+                      ['红色', '橙色', '绿色', '蓝色', '紫色', '白色', '黑色'][
+                        index
+                      ]
+                    }
                     aria-pressed={color === c}
                     className={`screenshot-color ${color === c ? 'chosen' : ''}`}
-                    style={{ background: c }}
+                    style={{ '--swatch': c } as React.CSSProperties}
                     onClick={() => configure({ color: c })}
                   />
                 ))}
