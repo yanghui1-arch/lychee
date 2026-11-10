@@ -6,6 +6,10 @@ export function Configure(arg1) {
   return window['go']['subtitle']['SubtitleService']['Configure'](arg1);
 }
 
+export function DesktopBackground() {
+  return window['go']['subtitle']['SubtitleService']['DesktopBackground']();
+}
+
 export function GetSubtitleFrame() {
   return window['go']['subtitle']['SubtitleService']['GetSubtitleFrame']();
 }

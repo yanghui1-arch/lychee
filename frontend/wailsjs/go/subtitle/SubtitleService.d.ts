@@ -4,4 +4,6 @@ import {subtitle} from '../models';
 
 export function Configure(arg1:subtitle.SubtitleSettings):Promise<void>;
 
+export function DesktopBackground():Promise<subtitle.DesktopBackground>;
+
 export function GetSubtitleFrame():Promise<subtitle.SubtitleFrame>;
