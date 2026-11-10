@@ -21,6 +21,7 @@ const (
 
 // WindowService expands the startup floating ball into the existing workspace.
 type WindowService struct {
+	capture              *screenshotSession
 	ctx                  context.Context
 	mu                   sync.Mutex
 	expanded             bool
@@ -44,7 +45,7 @@ func (s *WindowService) showExisting() {
 func (s *WindowService) ShowFloating() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.workspace || s.shown {
+	if s.capture != nil || s.workspace || s.shown {
 		return nil
 	}
 	if err := prepareFloatingWindow(); err != nil {
@@ -90,7 +91,7 @@ func (s *WindowService) OpenWorkspace() error {
 func (s *WindowService) SetFloatingExpanded(expanded bool, revision int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.workspace || !s.shown || revision <= s.hoverRevision {
+	if s.capture != nil || s.workspace || !s.shown || revision <= s.hoverRevision {
 		return nil
 	}
 	s.hoverRevision = revision

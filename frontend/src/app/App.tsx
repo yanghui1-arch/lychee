@@ -1,5 +1,8 @@
 import { MotionConfig } from 'motion/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
+import { ScreenshotEditor } from '@/features/screenshot/ScreenshotEditor'
+import type { Frame } from '@/features/screenshot/model'
 import { Toaster, ToastProvider } from '@/components/ui/toast'
 import { TranslatorWorkspace } from '@/features/translator/TranslatorWorkspace'
 import { isDesktop } from '@/lib/desktop'
@@ -9,17 +12,49 @@ document.documentElement.dataset.desktop = String(isDesktop)
 
 export function App() {
   const [floating, setFloating] = useState(isDesktop)
-
-  if (floating) return <FloatingBall onOpen={() => setFloating(false)} />
+  const [capture, setCapture] = useState<Frame | null>(null)
+  const [captureError, setCaptureError] = useState('')
+  useEffect(() => {
+    if (!isDesktop) return
+    const start = EventsOn('screenshot:start', (frame: Frame) =>
+      setCapture(frame),
+    )
+    const end = EventsOn('screenshot:end', () => setCapture(null))
+    const error = EventsOn('screenshot:error', (message: string) =>
+      setCaptureError(message),
+    )
+    return () => {
+      start()
+      end()
+      error()
+    }
+  }, [])
 
   return (
-    <MotionConfig reducedMotion="user">
-      <ToastProvider timeout={2800} limit={1}>
-        <main className="min-h-svh bg-background">
-          <TranslatorWorkspace />
-        </main>
-        <Toaster />
-      </ToastProvider>
-    </MotionConfig>
+    <>
+      <div style={{ display: capture ? 'none' : undefined }}>
+        {floating ? (
+          <FloatingBall onOpen={() => setFloating(false)} />
+        ) : (
+          <MotionConfig reducedMotion="user">
+            <ToastProvider timeout={2800} limit={1}>
+              <main className="min-h-svh bg-background">
+                <TranslatorWorkspace />
+              </main>
+              <Toaster />
+            </ToastProvider>
+          </MotionConfig>
+        )}
+      </div>
+      {capture && <ScreenshotEditor initial={capture} />}
+      {captureError && (
+        <button
+          className="fixed bottom-2 left-2 rounded bg-red-950 p-2 text-xs text-white"
+          onClick={() => setCaptureError('')}
+        >
+          {captureError} · 关闭
+        </button>
+      )}
+    </>
   )
 }

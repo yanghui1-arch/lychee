@@ -5,7 +5,11 @@ import { closeApp } from '@/lib/desktop'
 import { cn } from '@/lib/utils'
 import { useAppearance } from './useAppearance'
 import { useFloatingControlsAnimation } from './useFloatingControlsAnimation'
-import { OpenWorkspace, ShowFloating } from '../../wailsjs/go/app/WindowService'
+import {
+  BeginScreenshot,
+  OpenWorkspace,
+  ShowFloating,
+} from '../../wailsjs/go/app/WindowService'
 
 export function FloatingBall({ onOpen }: { onOpen: () => void }) {
   useAppearance()
@@ -79,9 +83,9 @@ export function FloatingBall({ onOpen }: { onOpen: () => void }) {
             <button
               type="button"
               className="flex size-8 cursor-default items-center justify-center rounded-[6px] bg-transparent outline-none transition-colors duration-150 hover:text-[#d64f6b] focus-visible:text-[#d64f6b] focus-visible:ring-2 focus-visible:ring-ring/70"
-              aria-label="截图翻译"
-              aria-disabled="true"
-              title="截图翻译"
+              aria-label="截图"
+              onClick={() => void BeginScreenshot().catch(console.error)}
+              title="截图 · F1"
             >
               <Scissors
                 className="pointer-events-none size-[18px]"

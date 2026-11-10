@@ -60,6 +60,63 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class ScreenshotRect {
+	    x: number;
+	    y: number;
+	    width: number;
+	    height: number;
+
+	    static createFrom(source: any = {}) {
+	        return new ScreenshotRect(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	    }
+	}
+	export class ScreenshotFrame {
+	    image: string;
+	    width: number;
+	    height: number;
+	    added: boolean;
+	    workArea?: ScreenshotRect;
+
+	    static createFrom(source: any = {}) {
+	        return new ScreenshotFrame(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.image = source["image"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.added = source["added"];
+	        this.workArea = this.convertValues(source["workArea"], ScreenshotRect);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
 	export class SubtitleFrame {
 	    key: string;
 	    source: string;

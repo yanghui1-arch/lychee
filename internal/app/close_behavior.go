@@ -9,6 +9,10 @@ import (
 // Closing a window keeps the app running; only the tray exit permits quitting.
 func (s *WindowService) RequestClose() error {
 	s.mu.Lock()
+	if s.capture != nil {
+		s.mu.Unlock()
+		return s.CancelScreenshot()
+	}
 	defer s.mu.Unlock()
 	if s.ctx == nil {
 		return nil

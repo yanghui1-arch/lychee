@@ -33,16 +33,22 @@ func writeFloatingPosition(path string, x, y int) error {
 
 func (s *WindowService) restoreFloatingPosition() error {
 	position := readFloatingPosition(s.floatingPositionPath)
-	if position == nil {
-		screens, err := wailsruntime.ScreenGetAll(s.ctx)
-		if err != nil {
-			return err
-		}
-		if len(screens) == 0 {
-			return nil
-		}
-		screen := screens[0]
-		scale := float64(screen.PhysicalSize.Width) / float64(screen.Size.Width)
+	screens, err := wailsruntime.ScreenGetAll(s.ctx)
+	if err != nil {
+		return err
+	}
+	if len(screens) == 0 {
+		return nil
+	}
+	screen := screens[0]
+	scale := float64(screen.PhysicalSize.Width) / float64(screen.Size.Width)
+	// A saved location may be outside the screen after a resolution change.
+	// Validate the visible ball, allowing its transparent toolbar margin off-screen.
+	if position == nil ||
+		position[0]+int(float64(floatingOffsetX)*scale) < 0 ||
+		position[1]+int(float64(floatingOffsetY)*scale) < 0 ||
+		position[0]+int(float64(floatingWidth)*scale) > screen.PhysicalSize.Width ||
+		position[1]+int(float64(floatingHeight)*scale) > screen.PhysicalSize.Height {
 		position = []int{
 			screen.PhysicalSize.Width*3/4 - int(float64(floatingOffsetX+floatingSize/2)*scale),
 			screen.PhysicalSize.Height/4 - int(float64(floatingOffsetY+floatingSize/2)*scale),
@@ -52,7 +58,7 @@ func (s *WindowService) restoreFloatingPosition() error {
 }
 
 func (s *WindowService) saveFloatingPositionLocked() error {
-	if !s.shown || s.workspace || wailsruntime.WindowIsMinimised(s.ctx) {
+	if s.capture != nil || !s.shown || s.workspace || wailsruntime.WindowIsMinimised(s.ctx) {
 		return nil
 	}
 	x, y := wailsruntime.WindowGetPosition(s.ctx)
