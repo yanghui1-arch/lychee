@@ -29,11 +29,19 @@ func (s *Service) windowHandle() (windows.HWND, error) {
 }
 
 type screenshotSession struct {
-	previous             windows.Rect
-	display              image.Rectangle
-	minimized            bool
-	original, last, long *image.RGBA
-	scrollRect           image.Rectangle
+	previous            windows.Rect
+	display             image.Rectangle
+	minimized           bool
+	original            *image.RGBA
+	stitch              *scrollCapture
+	scrollRect          image.Rectangle
+	contextRect         image.Rectangle
+	excluded            bool
+	overlaySet          bool
+	pinned              bool
+	sampling            chan struct{}
+	revision, delivered uint64
+	sampleErr           error
 }
 
 func screenshotFrame(img *image.RGBA, added bool) ScreenshotFrame {
@@ -113,7 +121,16 @@ func (s *Service) CancelScreenshot() error {
 		return nil
 	}
 	c := s.capture
+	c.stopSampling()
+	if c.excluded {
+		if hwnd, err := s.windowHandle(); err == nil {
+			windowUser32.NewProc("SetWindowDisplayAffinity").Call(uintptr(hwnd), 0)
+		}
+	}
 	wailsruntime.WindowHide(s.ctx)
+	if err := s.clearScrollOverlay(); err != nil {
+		return err
+	}
 	if err := s.placeWindow(image.Rect(int(c.previous.Left), int(c.previous.Top), int(c.previous.Right), int(c.previous.Bottom))); err != nil {
 		return err
 	}
@@ -137,6 +154,18 @@ func (s *Service) PinScreenshot(width, height int) error {
 	}
 	if width < 1 || height < 1 || width > 32768 || height > 32768 {
 		return errors.New("截图大小无效")
+	}
+	if s.capture.overlaySet {
+		if err := s.clearScrollOverlay(); err != nil {
+			return err
+		}
+		if s.capture.excluded {
+			if hwnd, err := s.windowHandle(); err == nil {
+				windowUser32.NewProc("SetWindowDisplayAffinity").Call(uintptr(hwnd), 0)
+			}
+			s.capture.excluded = false
+		}
+		s.capture.pinned = true
 	}
 	// A pinned picture remains movable and always on top, with no taskbar entry.
 	d := s.capture.display
@@ -165,52 +194,238 @@ func (s *Service) SaveScreenshot(data string) (string, error) {
 }
 func (s *Service) ScrollScreenshot(x, y, width, height int) (ScreenshotFrame, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	c := s.capture
 	if c == nil {
+		s.mu.Unlock()
 		return ScreenshotFrame{}, errors.New("请先截图")
 	}
 	r := image.Rect(x, y, x+width, y+height)
 	if width < 64 || height < 100 || !r.In(image.Rect(0, 0, c.display.Dx(), c.display.Dy())) {
+		s.mu.Unlock()
 		return ScreenshotFrame{}, errors.New("滚动选区至少为 64 × 100 像素")
 	}
-	if c.long == nil {
+	if c.stitch == nil {
 		c.scrollRect = r
-		c.last = image.NewRGBA(image.Rect(0, 0, width, height))
-		draw.Draw(c.last, c.last.Bounds(), c.original, r.Min, draw.Src)
-		c.long = c.last
+		first := image.NewRGBA(image.Rect(0, 0, width, height))
+		draw.Draw(first, first.Bounds(), c.original, r.Min, draw.Src)
+		c.contextRect = r
+		c.stitch = newScrollCapture(first, first.Bounds())
+		s.mu.Unlock()
+		return screenshotFrame(first, false), nil
 	}
 	if r != c.scrollRect {
+		s.mu.Unlock()
 		return ScreenshotFrame{}, errors.New("滚动过程中不能修改选区")
 	}
-	if c.long.Bounds().Dy()+height > 30000 {
-		return ScreenshotFrame{}, errors.New("长截图已达到 30000 像素上限")
+	img, err := c.stitch.long, c.sampleErr
+	changed := c.revision != c.delivered
+	if err == nil {
+		c.delivered = c.revision
 	}
-	wailsruntime.WindowHide(s.ctx)
-	defer wailsruntime.WindowShow(s.ctx)
-	var old struct{ X, Y int32 }
-	windowUser32.NewProc("GetCursorPos").Call(uintptr(unsafe.Pointer(&old)))
-	windowUser32.NewProc("SetCursorPos").Call(uintptr(c.display.Min.X+x+width/2), uintptr(c.display.Min.Y+y+height/2))
-	// Resolve the actual application beneath the selection after hiding our overlay.
-	px, py := int32(c.display.Min.X+x+width/2), int32(c.display.Min.Y+y+height/2)
-	under, _, _ := windowUser32.NewProc("WindowFromPoint").Call(uintptr(uint64(uint32(px)) | uint64(uint32(py))<<32))
-	root, _, _ := windowUser32.NewProc("GetAncestor").Call(under, 2)
-	windowUser32.NewProc("SetForegroundWindow").Call(root)
-	time.Sleep(80 * time.Millisecond)
-	// Send a normal wheel gesture to the selected application's viewport.
-	windowUser32.NewProc("mouse_event").Call(0x0800, 0, 0, uintptr(uint32(0xfffffe98)), 0) // -360
-	time.Sleep(450 * time.Millisecond)
-	frame, err := screenshot.CaptureRect(r.Add(c.display.Min))
-	windowUser32.NewProc("SetCursorPos").Call(uintptr(old.X), uintptr(old.Y))
+	s.mu.Unlock()
 	if err != nil {
 		return ScreenshotFrame{}, err
 	}
-	merged, added := appendScrollFrame(c.long, c.last, frame)
-	if added {
-		c.long, c.last = merged, frame
+	if !changed {
+		return ScreenshotFrame{Width: img.Bounds().Dx(), Height: img.Bounds().Dy()}, nil
 	}
-	return screenshotFrame(c.long, added), nil
+	// Long images are immutable. Encoding outside the lock lets acquisition keep
+	// running while the preview is encoded and transferred to the frontend.
+	return screenshotFrame(img, true), nil
 }
+
+func (c *screenshotSession) stopSampling() {
+	if c.sampling != nil {
+		close(c.sampling)
+		c.sampling = nil
+	}
+}
+
+func (s *Service) sampleScroll(c *screenshotSession) error {
+	frame, err := screenshot.CaptureRect(c.contextRect.Add(c.display.Min))
+	if err != nil {
+		return err
+	}
+	added, err := c.stitch.append(frame)
+	if added {
+		c.revision++
+	}
+	return err
+}
+
+func (s *Service) sampleScrollLoop(c *screenshotSession, stop <-chan struct{}) {
+	ticker := time.NewTicker(65 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			s.mu.Lock()
+			if s.capture != c || c.sampling != stop {
+				s.mu.Unlock()
+				return
+			}
+			c.sampleErr = s.sampleScroll(c)
+			s.mu.Unlock()
+		}
+	}
+}
+
+func (s *Service) StopScrollScreenshot() (ScreenshotFrame, error) {
+	s.mu.Lock()
+	c := s.capture
+	if c == nil || c.stitch == nil {
+		s.mu.Unlock()
+		return ScreenshotFrame{}, errors.New("没有正在进行的滚动截图")
+	}
+	c.stopSampling()
+	sampleErr := s.sampleScroll(c)
+	img := c.stitch.long
+	s.mu.Unlock()
+	wailsruntime.WindowShow(s.ctx)
+	if sampleErr != nil {
+		wailsruntime.EventsEmit(s.ctx, "screenshot:error", sampleErr.Error())
+	}
+	return screenshotFrame(img, false), nil
+}
+
+// SetScrollScreenshotOverlay leaves the real desktop visible and interactive
+// everywhere except the preview, shared screenshot toolbar and selection outline.
+func (s *Service) SetScrollScreenshotOverlay(x, y, width, height, border, toolbarX, toolbarY, toolbarWidth, toolbarHeight int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.capture
+	if c == nil || c.stitch == nil {
+		return errors.New("没有正在进行的滚动截图")
+	}
+	if c.pinned {
+		return nil
+	}
+	preview := image.Rect(x, y, x+width, y+height)
+	toolbar := image.Rect(toolbarX, toolbarY, toolbarX+toolbarWidth, toolbarY+toolbarHeight)
+	screen := image.Rect(0, 0, c.display.Dx(), c.display.Dy())
+	if toolbarWidth <= 0 || toolbarHeight <= 0 || !toolbar.In(screen) || width <= 0 || height <= 0 || !preview.In(screen) || !preview.Intersect(c.scrollRect).Empty() || border < 1 || border > 32 {
+		return errors.New("滚动截图预览位置无效")
+	}
+	if err := s.setScrollOverlay(preview, toolbar, border); err != nil {
+		return err
+	}
+	if !c.overlaySet {
+		// Give normal wheel and keyboard scrolling back to the selected application,
+		// including systems with scrolling of inactive windows disabled.
+		px := int32(c.display.Min.X + c.scrollRect.Min.X + c.scrollRect.Dx()/2)
+		py := int32(c.display.Min.Y + c.scrollRect.Min.Y + c.scrollRect.Dy()/2)
+		under, _, _ := windowUser32.NewProc("WindowFromPoint").Call(uintptr(uint64(uint32(px)) | uint64(uint32(py))<<32))
+		root, _, _ := windowUser32.NewProc("GetAncestor").Call(under, 2)
+		// Exclude our outline/preview from desktop captures before widening the
+		// tracking area. The output remains the exact selected horizontal strip.
+		if hwnd, err := s.windowHandle(); err == nil {
+			if ok, _, _ := windowUser32.NewProc("SetWindowDisplayAffinity").Call(uintptr(hwnd), 0x11); ok != 0 {
+				c.excluded = true
+				c.contextRect = scrollTrackingRect(under, c.scrollRect, c.display)
+				context := image.NewRGBA(image.Rect(0, 0, c.contextRect.Dx(), c.contextRect.Dy()))
+				draw.Draw(context, context.Bounds(), c.original, c.contextRect.Min, draw.Src)
+				c.stitch = newScrollCapture(context, c.scrollRect.Sub(c.contextRect.Min))
+			}
+		}
+		if root != 0 {
+			windowUser32.NewProc("SetForegroundWindow").Call(root)
+		}
+		c.overlaySet = true
+		c.sampling = make(chan struct{})
+		go s.sampleScrollLoop(c, c.sampling)
+	}
+	return nil
+}
+
+// Use the native viewport under the selection, not the whole display: adjacent
+// panes and browser chrome must not become matching context for the scroll area.
+func scrollTrackingRect(under uintptr, selected, display image.Rectangle) image.Rectangle {
+	var client windows.Rect
+	var origin struct{ X, Y int32 }
+	if under == 0 {
+		return selected
+	}
+	ok, _, _ := windowUser32.NewProc("GetClientRect").Call(under, uintptr(unsafe.Pointer(&client)))
+	if ok == 0 {
+		return selected
+	}
+	ok, _, _ = windowUser32.NewProc("ClientToScreen").Call(under, uintptr(unsafe.Pointer(&origin)))
+	if ok == 0 {
+		return selected
+	}
+	viewport := image.Rect(int(origin.X), int(origin.Y), int(origin.X)+int(client.Right), int(origin.Y)+int(client.Bottom)).Intersect(display).Sub(display.Min)
+	if !selected.In(viewport) {
+		return selected
+	}
+	// Limit tracking work on very tall displays while providing at least several
+	// short-selection heights of headroom in both scroll directions.
+	margin := max(400, selected.Dy()*2)
+	return image.Rect(selected.Min.X, max(viewport.Min.Y, selected.Min.Y-margin), selected.Max.X, min(viewport.Max.Y, selected.Max.Y+margin))
+}
+
+func (s *Service) clearScrollOverlay() error {
+	hwnd, err := s.windowHandle()
+	if err != nil {
+		return err
+	}
+	if ok, _, err := windowUser32.NewProc("SetWindowRgn").Call(uintptr(hwnd), 0, 1); ok == 0 {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) setScrollOverlay(preview, toolbar image.Rectangle, border int) error {
+	hwnd, err := s.windowHandle()
+	if err != nil {
+		return err
+	}
+	gdi := windows.NewLazySystemDLL("gdi32.dll")
+	create := gdi.NewProc("CreateRectRgn")
+	remove := gdi.NewProc("DeleteObject")
+	rectRegion := func(r image.Rectangle) uintptr {
+		region, _, _ := create.Call(uintptr(r.Min.X), uintptr(r.Min.Y), uintptr(r.Max.X), uintptr(r.Max.Y))
+		return region
+	}
+	selection := s.capture.scrollRect
+	outline := rectRegion(selection.Inset(-border))
+	cut := rectRegion(selection)
+	panel := rectRegion(preview)
+	controls := rectRegion(toolbar)
+	if cut != 0 {
+		defer remove.Call(cut)
+	}
+	if panel != 0 {
+		defer remove.Call(panel)
+	}
+	if controls != 0 {
+		defer remove.Call(controls)
+	}
+	if outline == 0 || cut == 0 || panel == 0 || controls == 0 {
+		if outline != 0 {
+			remove.Call(outline)
+		}
+		return errors.New("无法创建滚动截图悬浮区域")
+	}
+	combine := gdi.NewProc("CombineRgn")
+	// Subtract the capture rectangle, then union preview and shared toolbar. Everything else is
+	// absent from our window, so wheel input works across the original application.
+	difference, _, _ := combine.Call(outline, outline, cut, 4)
+	union, _, _ := combine.Call(outline, outline, panel, 2)
+	toolbarUnion, _, _ := combine.Call(outline, outline, controls, 2)
+	if difference == 0 || union == 0 || toolbarUnion == 0 {
+		remove.Call(outline)
+		return errors.New("无法设置滚动截图悬浮区域")
+	}
+	if ok, _, err := windowUser32.NewProc("SetWindowRgn").Call(uintptr(hwnd), outline, 1); ok == 0 {
+		remove.Call(outline)
+		return err
+	}
+	// The window owns outline after a successful SetWindowRgn.
+	return nil
+}
+
 func (s *Service) StartHotkey() func() {
 	ready := make(chan uint32, 1)
 	go func() {

@@ -125,3 +125,11 @@ func (s *WindowService) PinScreenshot(width, height int) error {
 func (s *WindowService) ScrollScreenshot(x, y, width, height int) (screenshot.ScreenshotFrame, error) {
 	return s.screenshot.ScrollScreenshot(x, y, width, height)
 }
+
+func (s *WindowService) StopScrollScreenshot() (screenshot.ScreenshotFrame, error) {
+	return s.screenshot.StopScrollScreenshot()
+}
+
+func (s *WindowService) SetScrollScreenshotOverlay(x, y, width, height, border, toolbarX, toolbarY, toolbarWidth, toolbarHeight int) error {
+	return s.screenshot.SetScrollScreenshotOverlay(x, y, width, height, border, toolbarX, toolbarY, toolbarWidth, toolbarHeight)
+}
