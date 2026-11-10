@@ -3,7 +3,7 @@ package main
 import (
 	"embed"
 
-	"github.com/yanghui1-arch/lychee/internal/app"
+	"github.com/yanghui1-arch/lychee/internal"
 )
 
 //go:embed all:frontend/dist
