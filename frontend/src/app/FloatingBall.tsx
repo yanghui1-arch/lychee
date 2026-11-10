@@ -11,7 +11,7 @@ import {
   ShowFloating,
 } from '../../wailsjs/go/app/WindowService'
 
-export function FloatingBall({ onOpen }: { onOpen: () => void }) {
+export function FloatingBall() {
   useAppearance()
   const opening = useRef(false)
   const [error, setError] = useState(false)
@@ -46,11 +46,12 @@ export function FloatingBall({ onOpen }: { onOpen: () => void }) {
     opening.current = true
     try {
       await OpenWorkspace()
-      onOpen()
+      setError(false)
     } catch (cause) {
       console.error(cause)
-      opening.current = false
       setError(true)
+    } finally {
+      opening.current = false
     }
   }
 

@@ -8,6 +8,8 @@ export function CancelScreenshot():Promise<void>;
 
 export function CopyScreenshot(arg1:string):Promise<void>;
 
+export function IsWorkspace():Promise<boolean>;
+
 export function OpenWorkspace():Promise<void>;
 
 export function PinScreenshot(arg1:number,arg2:number):Promise<void>;
@@ -23,3 +25,5 @@ export function ScrollScreenshot(arg1:number,arg2:number,arg3:number,arg4:number
 export function SetFloatingExpanded(arg1:boolean,arg2:number):Promise<void>;
 
 export function ShowFloating():Promise<void>;
+
+export function ShowWorkspace():Promise<void>;

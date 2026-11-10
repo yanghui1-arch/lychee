@@ -14,6 +14,10 @@ export function CopyScreenshot(arg1) {
   return window['go']['app']['WindowService']['CopyScreenshot'](arg1);
 }
 
+export function IsWorkspace() {
+  return window['go']['app']['WindowService']['IsWorkspace']();
+}
+
 export function OpenWorkspace() {
   return window['go']['app']['WindowService']['OpenWorkspace']();
 }
@@ -44,4 +48,8 @@ export function SetFloatingExpanded(arg1, arg2) {
 
 export function ShowFloating() {
   return window['go']['app']['WindowService']['ShowFloating']();
+}
+
+export function ShowWorkspace() {
+  return window['go']['app']['WindowService']['ShowWorkspace']();
 }

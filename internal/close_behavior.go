@@ -17,6 +17,10 @@ func (s *WindowService) RequestClose() error {
 	if s.ctx == nil {
 		return nil
 	}
+	if s.workspace {
+		wailsruntime.WindowHide(s.ctx)
+		return nil
+	}
 	err := s.saveFloatingPositionLocked()
 	wailsruntime.WindowMinimise(s.ctx)
 	return err
