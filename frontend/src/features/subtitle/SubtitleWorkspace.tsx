@@ -1,25 +1,13 @@
 import { cn } from '@/lib/utils'
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from 'react'
-import {
-  AppWindow,
-  ArrowRightLeft,
-  ChevronsUpDown,
-  Monitor,
-} from 'lucide-react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { AppWindow, ArrowRightLeft, Monitor } from 'lucide-react'
 import { motion } from 'motion/react'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  PopupSelect,
+  SegmentedControl,
+  SettingsGroup,
+  SettingsRow,
+} from '@/components/ui/settings'
 import { LANGUAGES, type Language } from '@/features/translator/model'
 import { ListeningSourceLabel } from './ListeningSourceLabel'
 import type { AudioCapture, AudioOption } from './useAudioCapture'
@@ -66,127 +54,12 @@ function AudioSourceIcon({
   return (
     <Icon
       className={cn(
-        'size-4 shrink-0 text-[color:var(--st-secondary)]',
+        'size-4 shrink-0 text-[color:var(--ui-secondary)]',
         className,
       )}
       strokeWidth={1.6}
       aria-hidden="true"
     />
-  )
-}
-
-function PopupSelect<T extends { value: string; label: string }>({
-  label,
-  value,
-  items,
-  disabled,
-  onChange,
-  onOpenChange,
-  renderIcon,
-}: {
-  label: string
-  value: string
-  items: readonly T[]
-  disabled?: boolean
-  onChange: (value: string) => void
-  onOpenChange?: (open: boolean) => void
-  renderIcon?: (item: T) => ReactNode
-}) {
-  const selected = items.find((item) => item.value === value)
-  return (
-    <Select
-      items={items}
-      value={value}
-      disabled={disabled}
-      onOpenChange={onOpenChange}
-      onValueChange={(next) => next !== null && onChange(next)}
-    >
-      <SelectTrigger
-        className={cn(
-          'h-[28px]! w-full min-w-0 gap-2 rounded-[7px] border border-[var(--st-control-border)] py-0 pr-1.5 pl-2.5',
-          'bg-[var(--st-control)]! text-[13px] font-normal text-[color:var(--st-label)] shadow-[var(--st-control-shadow)]',
-          'transition-[background-color] duration-150 hover:bg-[var(--st-control-hover)]!',
-          '[&>svg:last-child]:hidden',
-          "[&_[data-slot='select-value']]:block [&_[data-slot='select-value']]:min-w-0",
-          "[&_[data-slot='select-value']]:truncate",
-        )}
-        aria-label={label}
-        title={selected?.label}
-      >
-        {selected && renderIcon?.(selected)}
-        <SelectValue />
-        <ChevronsUpDown
-          className="size-3! shrink-0 text-[color:var(--st-secondary)]"
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-      </SelectTrigger>
-      <SelectContent
-        className="w-[max(var(--anchor-width),_200px)] max-w-[min(380px,_calc(100vw_-_24px))] rounded-[10px] p-1 text-[13px] [animation-duration:var(--motion-duration)] [animation-timing-function:var(--motion-ease)] data-ending-style:[animation-duration:var(--motion-close-duration)] [&_[data-slot='select-item']]:min-h-[28px] [&_[data-slot='select-item']]:rounded-[6px]"
-        align="start"
-        sideOffset={6}
-        alignItemWithTrigger={false}
-      >
-        {items.map((item) => (
-          <SelectItem
-            key={item.value}
-            value={item.value}
-            title={item.label}
-            className="[&>:first-child]:min-w-0 [&>:first-child]:shrink"
-          >
-            {renderIcon?.(item)}
-            <span className="min-w-0 truncate">{item.label}</span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-function Row({
-  label,
-  htmlFor,
-  children,
-  className,
-}: {
-  label?: string
-  htmlFor?: string
-  children: ReactNode
-  className?: string
-}) {
-  return (
-    <div
-      className={cn(
-        'subtitle-row flex h-12 min-w-0 items-center gap-3 px-3.5',
-        className,
-      )}
-    >
-      {label &&
-        (htmlFor ? (
-          <label
-            htmlFor={htmlFor}
-            className="w-9 shrink-0 text-[13px] text-[color:var(--st-label)]"
-          >
-            {label}
-          </label>
-        ) : (
-          <span className="w-9 shrink-0 text-[13px] text-[color:var(--st-label)]">
-            {label}
-          </span>
-        ))}
-      <div className="flex min-w-0 flex-1 items-center gap-2">{children}</div>
-    </div>
-  )
-}
-
-function Group({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <section
-      aria-label={label}
-      className="min-w-0 rounded-[12px] border border-[var(--st-group-border)] bg-[var(--st-group)] py-0.5 shadow-[var(--st-group-shadow)]"
-    >
-      {children}
-    </section>
   )
 }
 
@@ -247,7 +120,7 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
 
   return (
     <section
-      className="subtitle-workspace grid min-h-0 grid-rows-[minmax(220px,_1fr)_auto] gap-4 pt-3 pb-1"
+      className="grid min-h-0 grid-rows-[minmax(220px,_1fr)_auto] gap-4 pt-3 pb-1"
       aria-label="字幕设置与预览"
     >
       <div
@@ -262,7 +135,7 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
         style={
           {
             '--subtitle-font-size': `${settings.fontSize * 0.46}px`,
-            '--preview-color': background?.color ?? 'var(--st-group)',
+            '--preview-color': background?.color ?? 'var(--ui-group)',
           } as CSSProperties
         }
       >
@@ -386,26 +259,26 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4 [@media(max-width:760px)]:grid-cols-1">
-        <Group label="字幕">
-          <Row>
+        <SettingsGroup label="字幕">
+          <SettingsRow>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span
                 id="subtitle-heading"
-                className="text-[13px] font-medium text-[color:var(--st-label)]"
+                className="text-[13px] font-medium text-[color:var(--ui-label)]"
               >
                 桌面字幕
               </span>
               <span
                 id="subtitle-description"
-                className="flex min-w-0 items-center gap-1.5 text-[11.5px] leading-4 text-[color:var(--st-secondary)]"
+                className="flex min-w-0 items-center gap-1.5 text-[11.5px] leading-4 text-[color:var(--ui-secondary)]"
                 role="status"
               >
                 {state === 'listening' ? (
                   <>
                     <span
-                      className="size-1.5 shrink-0 rounded-full bg-[var(--st-live)] transition-[box-shadow] duration-100"
+                      className="size-1.5 shrink-0 rounded-full bg-[var(--ui-live)] transition-[box-shadow] duration-100"
                       style={{
-                        boxShadow: `0 0 0 ${Math.min(4, audio.status.level * 40)}px color-mix(in srgb, var(--st-live) 28%, transparent)`,
+                        boxShadow: `0 0 0 ${Math.min(4, audio.status.level * 40)}px color-mix(in srgb, var(--ui-live) 28%, transparent)`,
                       }}
                       aria-label={`音量 ${Math.round(audio.status.level * 100)}%`}
                     />
@@ -439,8 +312,8 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
               aria-describedby="subtitle-description"
               className={cn(
                 'relative inline-flex h-[24px] w-[42px] shrink-0 cursor-pointer items-center rounded-full p-[2px]',
-                'bg-[var(--st-switch-off)] shadow-[var(--st-track-inset)] transition-[background-color] duration-200',
-                'aria-checked:bg-[var(--st-live)] disabled:cursor-wait disabled:opacity-60',
+                'bg-[var(--ui-switch-off)] shadow-[var(--ui-track-inset)] transition-[background-color] duration-200',
+                'aria-checked:bg-[var(--ui-live)] disabled:cursor-wait disabled:opacity-60',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-ring)]',
               )}
               disabled={audio.pending}
@@ -456,8 +329,8 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
                 )}
               />
             </button>
-          </Row>
-          <Row label="语言">
+          </SettingsRow>
+          <SettingsRow label="语言">
             <PopupSelect
               label="原语言"
               value={settings.source}
@@ -467,7 +340,7 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
             />
             <button
               type="button"
-              className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-[6px] text-[color:var(--st-secondary)] transition-colors hover:bg-[var(--st-track)] hover:text-[color:var(--st-label)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
+              className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-[6px] text-[color:var(--ui-secondary)] transition-colors hover:bg-[var(--ui-track)] hover:text-[color:var(--ui-label)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
               aria-label="交换原语言与目标语言"
               title="交换语言"
               disabled={audio.pending}
@@ -484,8 +357,8 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
               disabled={audio.pending}
               onChange={(target) => patch({ target: target as Language })}
             />
-          </Row>
-          <Row label="来源">
+          </SettingsRow>
+          <SettingsRow label="来源">
             <PopupSelect
               label="监听来源"
               value={settings.audio}
@@ -503,13 +376,13 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
                 } else patch({ audio: next })
               }}
             />
-          </Row>
-        </Group>
+          </SettingsRow>
+        </SettingsGroup>
 
-        <Group label="字幕外观">
-          <Row label="字号" htmlFor="subtitle-font-size">
+        <SettingsGroup label="字幕外观">
+          <SettingsRow label="字号" htmlFor="subtitle-font-size">
             <span
-              className="text-[11px] text-[color:var(--st-secondary)]"
+              className="text-[11px] text-[color:var(--ui-secondary)]"
               aria-hidden="true"
             >
               A
@@ -533,60 +406,22 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
               }
             />
             <span
-              className="text-[16px] text-[color:var(--st-secondary)]"
+              className="text-[16px] text-[color:var(--ui-secondary)]"
               aria-hidden="true"
             >
               A
             </span>
-          </Row>
-          <Row label="位置">
-            <div
-              className="flex h-[26px] flex-1 rounded-[8px] bg-[var(--st-track)] p-[2px] shadow-[var(--st-track-inset)]"
-              role="radiogroup"
-              aria-label="字幕位置"
-            >
-              {POSITIONS.map((position) => {
-                const checked = settings.position === position.value
-                return (
-                  <label
-                    key={position.value}
-                    className="relative flex-1 cursor-pointer has-focus-visible:rounded-[6px] has-focus-visible:outline-2 has-focus-visible:outline-[var(--color-ring)]"
-                  >
-                    <input
-                      className="sr-only"
-                      type="radio"
-                      name="subtitle-position"
-                      value={position.value}
-                      checked={checked}
-                      onChange={() => patch({ position: position.value })}
-                    />
-                    {checked && (
-                      <motion.span
-                        layoutId="subtitle-position-thumb"
-                        className="absolute inset-0 rounded-[6px] border border-[var(--st-control-border)] bg-[var(--st-control)] shadow-[var(--st-control-shadow)]"
-                        transition={{
-                          type: 'spring',
-                          stiffness: 520,
-                          damping: 40,
-                        }}
-                      />
-                    )}
-                    <span
-                      className={cn(
-                        'relative grid h-full place-items-center text-[12px] transition-colors duration-150',
-                        checked
-                          ? 'font-medium text-[color:var(--st-label)]'
-                          : 'text-[color:var(--st-secondary)] hover:text-[color:var(--st-label)]',
-                      )}
-                    >
-                      {position.label}
-                    </span>
-                  </label>
-                )
-              })}
-            </div>
-          </Row>
-          <Row label="样式">
+          </SettingsRow>
+          <SettingsRow label="位置">
+            <SegmentedControl
+              name="subtitle-position"
+              label="字幕位置"
+              value={settings.position}
+              options={POSITIONS}
+              onChange={(position) => patch({ position })}
+            />
+          </SettingsRow>
+          <SettingsRow label="样式">
             <div
               className="flex flex-1 gap-2"
               role="radiogroup"
@@ -601,11 +436,11 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
                       'subtitle-palette relative grid h-[26px] min-w-0 flex-1 cursor-pointer place-items-center rounded-[6px] bg-cover bg-[center_62%]',
                       'shadow-[inset_0_0_0_0.5px_#00000026] transition-shadow duration-150',
                       checked &&
-                        'shadow-[0_0_0_2px_var(--st-group),_0_0_0_3.5px_var(--st-label)]',
+                        'shadow-[0_0_0_2px_var(--ui-group),_0_0_0_3.5px_var(--ui-label)]',
                       'has-focus-visible:outline-2 has-focus-visible:outline-offset-4 has-focus-visible:outline-[var(--color-ring)]',
                     )}
                     style={{
-                      backgroundColor: background?.color ?? 'var(--st-track)',
+                      backgroundColor: background?.color ?? 'var(--ui-track)',
                       backgroundImage: background?.image
                         ? `url(${background.image})`
                         : undefined,
@@ -629,8 +464,8 @@ export function SubtitleWorkspace({ audio }: { audio: AudioCapture }) {
                 )
               })}
             </div>
-          </Row>
-        </Group>
+          </SettingsRow>
+        </SettingsGroup>
       </div>
     </section>
   )

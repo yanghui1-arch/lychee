@@ -1,38 +1,4 @@
-/* Subtitle workspace: shared caption palettes and native-feeling controls. */
-
-.subtitle-workspace {
-  --st-group: #f6f6f7;
-  --st-group-border: #0000000d;
-  --st-group-shadow: 0 1px 2px #0000000a;
-  --st-separator: #0000000f;
-  --st-control: #ffffff;
-  --st-control-hover: #fbfbfb;
-  --st-control-border: #00000017;
-  --st-control-shadow: 0 1px 1.5px #0000000f, 0 0 0 0.5px #00000008;
-  --st-track: #0000000f;
-  --st-track-inset: inset 0 1px 1.5px #0000000d;
-  --st-switch-off: #00000021;
-  --st-label: #1d1d1f;
-  --st-secondary: #86868b;
-  --st-live: #30a46c;
-}
-
-.dark .subtitle-workspace {
-  --st-group: #1d1e26;
-  --st-group-border: #ffffff0f;
-  --st-group-shadow: 0 1px 2px #0000004d;
-  --st-separator: #ffffff0f;
-  --st-control: #2c2e3a;
-  --st-control-hover: #323442;
-  --st-control-border: #ffffff12;
-  --st-control-shadow: 0 1px 1.5px #00000059, inset 0 0.5px 0 #ffffff14;
-  --st-track: #00000040;
-  --st-track-inset: inset 0 1px 2px #00000040;
-  --st-switch-off: #ffffff1f;
-  --st-label: #e9eaf2;
-  --st-secondary: #8e91a4;
-  --st-live: #3dd68c;
-}
+/* Subtitle workspace: caption palettes, preview caption and slider. */
 
 /* Caption palettes, shared by the preview caption and the style swatches. */
 .subtitle-palette {
@@ -145,20 +111,6 @@
   font-size: 0.95em;
 }
 
-/* Grouped settings rows with inset hairline separators. */
-.subtitle-row {
-  position: relative;
-}
-.subtitle-row + .subtitle-row::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 14px;
-  left: 14px;
-  height: 1px;
-  background: var(--st-separator);
-}
-
 /* Native-style range slider. */
 .subtitle-slider {
   width: 100%;
@@ -170,10 +122,10 @@
   cursor: pointer;
   background: linear-gradient(
     to right,
-    var(--st-label) var(--slider-progress),
-    var(--st-track) var(--slider-progress)
+    var(--ui-label) var(--slider-progress),
+    var(--ui-track) var(--slider-progress)
   );
-  box-shadow: var(--st-track-inset);
+  box-shadow: var(--ui-track-inset);
 }
 .subtitle-slider::-webkit-slider-thumb {
   width: 18px;
@@ -196,8 +148,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .subtitle-workspace *,
-  .subtitle-workspace *::-webkit-slider-thumb {
-    transition: none !important;
+  .subtitle-slider::-webkit-slider-thumb {
+    transition: none;
   }
 }
