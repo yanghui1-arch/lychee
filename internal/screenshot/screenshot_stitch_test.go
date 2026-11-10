@@ -20,7 +20,7 @@ func TestScrollingScreenshotStitchesOnlyNewContent(t *testing.T) {
 		return img
 	}
 	first, next := frame(0), frame(180)
-	stitch := newScrollStitcher(first)
+	stitch := newScrollCapture(first, first.Bounds())
 	added, err := stitch.append(next)
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestScrollingScreenshotTracksGentleContinuousScroll(t *testing.T) {
 		draw.Draw(img, img.Bounds(), page, image.Pt(0, top), draw.Src)
 		return img
 	}
-	stitch := newScrollStitcher(frame(0))
+	stitch := newScrollCapture(frame(0), frame(0).Bounds())
 	for _, top := range []int{3, 7, 12, 80, 180, 320} {
 		next := frame(top)
 		added, err := stitch.append(next)
@@ -107,7 +107,7 @@ func TestScrollingScreenshotDoesNotAppendRevisitedContent(t *testing.T) {
 		{"turn around between captured positions", []int{73, 151, 247, 182, 91, 28, 101, 199, 274, 274, 171, 274, 340}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			stitch := newScrollStitcher(frame(0))
+			stitch := newScrollCapture(frame(0), frame(0).Bounds())
 			furthest := 0
 			for _, top := range tc.positions {
 				old := stitch.long
@@ -167,7 +167,7 @@ func TestScrollingScreenshotSparseTextWithNoiseAndRejectedFrames(t *testing.T) {
 		}
 		return img
 	}
-	stitch := newScrollStitcher(frame(0, 0))
+	stitch := newScrollCapture(frame(0, 0), frame(0, 0).Bounds())
 	furthest := 0
 	for i, top := range []int{11, 90, 170, 80, 0, 170, 240, 120, 240, 310} {
 		added, err := stitch.append(frame(top, i%2))
@@ -209,7 +209,7 @@ func TestScrollingScreenshotRejectsAmbiguousRepeatedContent(t *testing.T) {
 		draw.Draw(img, img.Bounds(), page, image.Pt(0, top), draw.Src)
 		return img
 	}
-	stitch := newScrollStitcher(frame(0))
+	stitch := newScrollCapture(frame(0), frame(0).Bounds())
 	for _, top := range []int{40, 80, 20, 0, 60, 100} {
 		before := stitch.long
 		added, err := stitch.append(frame(top))

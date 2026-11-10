@@ -200,9 +200,9 @@ func (s *Service) ScrollScreenshot(x, y, width, height int) (ScreenshotFrame, er
 		return ScreenshotFrame{}, errors.New("请先截图")
 	}
 	r := image.Rect(x, y, x+width, y+height)
-	if width < 64 || height < 100 || !r.In(image.Rect(0, 0, c.display.Dx(), c.display.Dy())) {
+	if width < 40 || height < 40 || !r.In(image.Rect(0, 0, c.display.Dx(), c.display.Dy())) {
 		s.mu.Unlock()
-		return ScreenshotFrame{}, errors.New("滚动选区至少为 64 × 100 像素")
+		return ScreenshotFrame{}, errors.New("滚动选区至少为 40 × 40 像素")
 	}
 	if c.stitch == nil {
 		c.scrollRect = r
@@ -254,7 +254,9 @@ func (s *Service) sampleScroll(c *screenshotSession) error {
 }
 
 func (s *Service) sampleScrollLoop(c *screenshotSession, stop <-chan struct{}) {
-	ticker := time.NewTicker(65 * time.Millisecond)
+	// Frequent samples keep consecutive frames overlapping, even for short
+	// selections and fast wheel scrolling. Identical frames are skipped cheaply.
+	ticker := time.NewTicker(30 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
@@ -266,7 +268,23 @@ func (s *Service) sampleScrollLoop(c *screenshotSession, stop <-chan struct{}) {
 				s.mu.Unlock()
 				return
 			}
-			c.sampleErr = s.sampleScroll(c)
+			rect := c.contextRect.Add(c.display.Min)
+			s.mu.Unlock()
+			// Capture outside the lock so preview polling is not blocked by it.
+			frame, err := screenshot.CaptureRect(rect)
+			s.mu.Lock()
+			if s.capture != c || c.sampling != stop {
+				s.mu.Unlock()
+				return
+			}
+			if err == nil {
+				var added bool
+				added, err = c.stitch.append(frame)
+				if added {
+					c.revision++
+				}
+			}
+			c.sampleErr = err
 			s.mu.Unlock()
 		}
 	}

@@ -1,70 +1,30 @@
 package screenshot
 
 import (
-	"errors"
-	"image"
-	"image/draw"
-	"math"
 	"sort"
 )
 
-// Every viewport is located against the immutable captured content, rather than
-// integrating frame-to-frame offsets (which accumulate errors after reversals).
-type scrollStitcher struct {
-	long, previous *image.RGBA
-	top            int
-	limit          int
-	rows           []scrollRow
-	index          map[uint64][]int
-}
+// Row signatures and alignment primitives for scrolling screenshots.
+//
+// Each captured row is reduced to a fixed number of sampled pixels. Two rows
+// match when their informative pixels (those that differ from the row's
+// dominant background) agree within a small tolerance. Alignment counts
+// matching and mismatching rows instead of averaging, so a few changed rows
+// (hover highlights, carets, sticky bars, lazy images) do not hide the true
+// scroll offset.
+
+const (
+	sampleColumns   = 96
+	rowTolerance    = 12
+	maxScrollHeight = 30000
+	maxIndexHits    = 128
+	maxCandidates   = 48
+)
 
 type scrollRow struct {
 	pixels     []uint8
 	textured   bool
 	background [3]uint8
-}
-
-func newScrollStitcher(first *image.RGBA) *scrollStitcher {
-	s := &scrollStitcher{long: first, previous: first, index: make(map[uint64][]int), limit: 30000}
-	s.addRows(scrollRows(first))
-	return s
-}
-
-func scrollRows(img *image.RGBA) []scrollRow {
-	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-	columns := min(96, w-8)
-	rows := make([]scrollRow, h)
-	for y := range rows {
-		row := scrollRow{pixels: make([]uint8, columns*3)}
-		var histogram [3][256]int
-		for x := 0; x < columns; x++ {
-			// Sample bin centres, avoiding the scrollbar and the selection edges.
-			px := 4 + (2*x+1)*(w-8)/(2*columns)
-			c := img.RGBAAt(px, y)
-			row.pixels[x*3], row.pixels[x*3+1], row.pixels[x*3+2] = c.R, c.G, c.B
-			histogram[0][c.R]++
-			histogram[1][c.G]++
-			histogram[2][c.B]++
-		}
-		for channel := 0; channel < 3; channel++ {
-			best := 0
-			for value, count := range histogram[channel] {
-				if count > best {
-					best = count
-					row.background[channel] = uint8(value)
-				}
-			}
-		}
-		for x := 0; x < columns; x++ {
-			for channel := 0; channel < 3; channel++ {
-				if absPixel(row.pixels[x*3+channel], row.background[channel]) > 16 {
-					row.textured = true
-				}
-			}
-		}
-		rows[y] = row
-	}
-	return rows
 }
 
 func absPixel(a, b uint8) int {
@@ -75,7 +35,75 @@ func absPixel(a, b uint8) int {
 	return d
 }
 
-func rowKey(row scrollRow, projection int) uint64 {
+// signatures samples every row of an RGBA pixel buffer.
+func signatures(pix []uint8, stride, width, height int) []scrollRow {
+	columns := max(1, min(sampleColumns, width-8))
+	inset := min(4, (width-columns)/2)
+	span := width - 2*inset
+	rows := make([]scrollRow, height)
+	samples := make([]uint8, height*columns*3)
+	for y := range rows {
+		row := scrollRow{pixels: samples[y*columns*3 : (y+1)*columns*3 : (y+1)*columns*3]}
+		var histogram [3][256]uint16
+		line := pix[y*stride:]
+		for x := 0; x < columns; x++ {
+			// Sample bin centres, avoiding scrollbars and the selection edges.
+			px := inset + (2*x+1)*span/(2*columns)
+			r, g, b := line[px*4], line[px*4+1], line[px*4+2]
+			row.pixels[x*3], row.pixels[x*3+1], row.pixels[x*3+2] = r, g, b
+			histogram[0][r]++
+			histogram[1][g]++
+			histogram[2][b]++
+		}
+		for channel := 0; channel < 3; channel++ {
+			best := uint16(0)
+			for value, count := range histogram[channel] {
+				if count > best {
+					best = count
+					row.background[channel] = uint8(value)
+				}
+			}
+		}
+		for i, v := range row.pixels {
+			if absPixel(v, row.background[i%3]) > 16 {
+				row.textured = true
+				break
+			}
+		}
+		rows[y] = row
+	}
+	return rows
+}
+
+// rowDiff returns the mean channel difference over informative pixels, and
+// false when both rows are the same plain background (no evidence either way).
+func rowDiff(a, b *scrollRow) (int, bool) {
+	backgroundsDiffer := false
+	for c := 0; c < 3; c++ {
+		if absPixel(a.background[c], b.background[c]) > rowTolerance {
+			backgroundsDiffer = true
+		}
+	}
+	total, count := 0, 0
+	for x := 0; x < len(a.pixels); x += 3 {
+		informative := backgroundsDiffer
+		for c := 0; c < 3 && !informative; c++ {
+			informative = absPixel(a.pixels[x+c], a.background[c]) > rowTolerance || absPixel(b.pixels[x+c], b.background[c]) > rowTolerance
+		}
+		if informative {
+			for c := 0; c < 3; c++ {
+				total += absPixel(a.pixels[x+c], b.pixels[x+c])
+			}
+			count += 3
+		}
+	}
+	if count == 0 {
+		return 0, false
+	}
+	return total / count, true
+}
+
+func rowKey(row *scrollRow, projection int) uint64 {
 	hash := uint64(1469598103934665603)
 	columns := len(row.pixels) / 3
 	for i := projection; i < columns; i += 4 {
@@ -87,150 +115,191 @@ func rowKey(row scrollRow, projection int) uint64 {
 	return hash ^ uint64(projection)
 }
 
-func (s *scrollStitcher) addRows(rows []scrollRow) {
-	for _, row := range rows {
-		y := len(s.rows)
-		s.rows = append(s.rows, row)
-		if !row.textured {
+// rowIndex maps quantized row hashes to row numbers for candidate generation.
+type rowIndex map[uint64][]int
+
+func newRowIndex(rows []scrollRow) rowIndex {
+	index := make(rowIndex, len(rows)*2)
+	index.add(rows, 0)
+	return index
+}
+
+func (index rowIndex) add(rows []scrollRow, base int) {
+	for i := range rows {
+		if !rows[i].textured {
 			continue
 		}
 		for projection := 0; projection < 4; projection++ {
-			key := rowKey(row, projection)
-			s.index[key] = append(s.index[key], y)
+			key := rowKey(&rows[i], projection)
+			index[key] = append(index[key], base+i)
 		}
 	}
 }
 
-// Background pixels do not dilute the score of mismatched text. Small rendering
-// noise is tolerated, and a few changed rows (caret/cursor) may be discarded.
-func viewportScore(known, next []scrollRow, top int) (float64, bool) {
-	start, end := max(0, -top), min(len(next), len(known)-top)
-	scores := make([]float64, 0, end-start)
+// alignment describes template row r lying on reference row r+offset.
+type alignment struct {
+	offset, matched, mismatched, overlap int
+}
+
+func (a alignment) quality() int { return a.matched - 3*a.mismatched }
+
+// compareRows aligns template row r with reference row r+offset. Reference rows
+// marked in skip (fixed UI around the selection) are left out entirely.
+func compareRows(template, reference []scrollRow, skip []bool, offset int) alignment {
+	start, end := max(0, -offset), min(len(template), len(reference)-offset)
+	a := alignment{offset: offset}
 	first, last := -1, -1
-	for y := start; y < end; y++ {
-		a, b := known[y+top], next[y]
-		var difference float64
-		count := 0
-		for x := 0; x < len(b.pixels); x += 3 {
-			informative := false
-			for c := 0; c < 3; c++ {
-				if absPixel(a.pixels[x+c], a.background[c]) > 12 || absPixel(b.pixels[x+c], b.background[c]) > 12 || absPixel(a.background[c], b.background[c]) > 12 {
-					informative = true
-				}
-			}
-			if informative {
-				for c := 0; c < 3; c++ {
-					difference += float64(absPixel(a.pixels[x+c], b.pixels[x+c]))
-					count++
-				}
-			}
-		}
-		if count > 0 {
-			scores = append(scores, difference/float64(count))
-			if first < 0 {
-				first = y
-			}
-			last = y
-		}
-	}
-	if len(scores) < 4 || last-first < (end-start)/3 {
-		return 255, false
-	}
-	sort.Float64s(scores)
-	keep := len(scores) - len(scores)/20 // at most 5% transient rows
-	var total float64
-	for _, v := range scores[:keep] {
-		total += v
-	}
-	score := total / float64(keep)
-	return score, score <= 6
-}
-
-func (s *scrollStitcher) append(next *image.RGBA) (bool, error) {
-	if next.Bounds().Size() != s.previous.Bounds().Size() {
-		return false, nil
-	}
-	rows := scrollRows(next)
-	h := len(rows)
-	minimum := max(24, min(64, h/8))
-	type candidate struct {
-		top, votes, lastRow int
-		score               float64
-	}
-	votes := map[int]*candidate{}
-	for y, row := range rows {
-		if !row.textured {
+	for r := start; r < end; r++ {
+		if skip != nil && skip[r+offset] {
 			continue
 		}
+		a.overlap++
+		diff, informative := rowDiff(&template[r], &reference[r+offset])
+		if !informative {
+			continue
+		}
+		if diff <= rowTolerance {
+			a.matched++
+			if first < 0 {
+				first = r
+			}
+			last = r
+		} else {
+			a.mismatched++
+		}
+		// Stop once two thirds agreement is no longer reachable.
+		if remaining := end - r - 1; a.mismatched*2 > a.matched+remaining {
+			a.matched = 0
+			return a
+		}
+	}
+	// Matches must span the overlap, not cluster on one repeated line.
+	if a.matched > 0 && last-first+1 < min(24, a.overlap/4) {
+		a.matched = 0
+	}
+	return a
+}
+
+func acceptable(a alignment, minimum int) bool {
+	return a.matched >= minimum && a.matched >= 2*a.mismatched
+}
+
+// locate finds the unique offset of template within reference. Candidates come
+// from row-hash votes plus the predicted offsets; ambiguous results are refused.
+func locate(template, reference []scrollRow, skip []bool, index rowIndex, predicted []int, minimum int) (alignment, bool) {
+	votes := map[int]int{}
+	seen := map[int]bool{}
+	for r := range template {
+		if !template[r].textured {
+			continue
+		}
+		clear(seen)
 		for projection := 0; projection < 4; projection++ {
-			hits := s.index[rowKey(row, projection)]
-			// Repeated/blank patterns cannot establish a unique position.
-			if len(hits) > 128 {
+			hits := index[rowKey(&template[r], projection)]
+			if len(hits) > maxIndexHits {
 				continue
 			}
-			for _, knownY := range hits {
-				top := knownY - y
-				if min(len(s.rows), top+h)-max(0, top) < minimum {
-					continue
-				}
-				c := votes[top]
-				if c == nil {
-					c = &candidate{top: top, lastRow: -1}
-					votes[top] = c
-				}
-				if c.lastRow != y {
-					c.votes++
-					c.lastRow = y
+			for _, y := range hits {
+				offset := y - r
+				if !seen[offset] {
+					seen[offset] = true
+					votes[offset]++
 				}
 			}
 		}
 	}
-	candidates := make([]*candidate, 0, len(votes))
-	for _, c := range votes {
-		if c.votes >= 4 {
-			candidates = append(candidates, c)
+	type candidate struct{ offset, votes int }
+	candidates := make([]candidate, 0, len(votes))
+	for offset, count := range votes {
+		if count >= 3 {
+			candidates = append(candidates, candidate{offset, count})
 		}
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].votes != candidates[j].votes {
 			return candidates[i].votes > candidates[j].votes
 		}
-		return math.Abs(float64(candidates[i].top-s.top)) < math.Abs(float64(candidates[j].top-s.top))
+		return candidates[i].offset < candidates[j].offset
 	})
-	var best *candidate
-	ambiguous := false
-	for _, c := range candidates[:min(64, len(candidates))] {
-		score, ok := viewportScore(s.rows, rows, c.top)
-		if !ok {
+	offsets := make([]int, 0, maxCandidates+len(predicted))
+	tried := map[int]bool{}
+	for _, offset := range predicted {
+		if !tried[offset] {
+			tried[offset] = true
+			offsets = append(offsets, offset)
+		}
+	}
+	for _, c := range candidates[:min(maxCandidates, len(candidates))] {
+		if !tried[c.offset] {
+			tried[c.offset] = true
+			offsets = append(offsets, c.offset)
+		}
+	}
+	var best alignment
+	found := false
+	var accepted []alignment
+	for _, offset := range offsets {
+		a := compareRows(template, reference, skip, offset)
+		if !acceptable(a, minimum) {
 			continue
 		}
-		c.score = score
-		if best == nil || score < best.score-0.5 {
-			best = c
-			ambiguous = false
-		} else if math.Abs(score-best.score) <= 0.5 && c.top != best.top {
-			ambiguous = true
+		accepted = append(accepted, a)
+		if !found || a.quality() > best.quality() {
+			best, found = a, true
 		}
 	}
-	// Never grow the image on an ambiguous alignment. A later, distinguishable
-	// viewport can recover directly against history without corrupting the result.
-	if best == nil || ambiguous {
-		return false, nil
+	if !found {
+		return alignment{}, false
 	}
-	top := best.top
-	bottom := top + h
-	if bottom > s.limit {
-		return false, errors.New("长截图已达到 30000 像素上限，请完成滚动")
+	margin := max(2, best.matched/16)
+	for _, a := range accepted {
+		if a.offset != best.offset && a.quality() >= best.quality()-margin {
+			return alignment{}, false
+		}
 	}
-	s.top, s.previous = top, next
-	if bottom <= s.long.Bounds().Dy() {
-		return false, nil
+	return best, true
+}
+
+// staticFooter counts bottom rows that stayed fixed on screen while the content
+// above them moved by delta, such as a sticky bar inside the selection.
+func staticFooter(current, previous []scrollRow, delta, limit int) int {
+	footer, run := 0, 0
+	moving := -1
+	for r := len(current) - 1; r >= max(0, len(current)-limit); r-- {
+		diff, informative := rowDiff(&current[r], &previous[r])
+		if informative && diff > rowTolerance {
+			moving = r
+			break
+		}
+		run++
+		if !informative {
+			continue
+		}
+		if p := r + delta; p >= 0 && p < len(previous) {
+			if moved, ok := rowDiff(&current[r], &previous[p]); !ok || moved <= rowTolerance {
+				continue // also consistent with the motion; not evidence
+			}
+		}
+		footer = run
 	}
-	oldHeight := s.long.Bounds().Dy()
-	result := image.NewRGBA(image.Rect(0, 0, next.Bounds().Dx(), bottom))
-	draw.Draw(result, s.long.Bounds(), s.long, image.Point{}, draw.Src)
-	draw.Draw(result, image.Rect(0, oldHeight, result.Bounds().Dx(), bottom), next, image.Pt(0, oldHeight-top), draw.Src)
-	s.long = result
-	s.addRows(rows[oldHeight-top:])
-	return true, nil
+	// Plain rows of the bar carry no detail; include those whose color differs
+	// from the scrolling content above.
+	if footer > 0 && moving >= 0 {
+		for r := len(current) - footer - 1; r > moving; r-- {
+			if !backgroundDiffers(&current[r], &current[moving]) {
+				break
+			}
+			footer++
+		}
+	}
+	return footer
+}
+
+func backgroundDiffers(a, b *scrollRow) bool {
+	for c := 0; c < 3; c++ {
+		if absPixel(a.background[c], b.background[c]) > rowTolerance {
+			return true
+		}
+	}
+	return false
 }
