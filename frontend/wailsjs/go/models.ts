@@ -126,6 +126,20 @@ export namespace screenshot {
 
 export namespace subtitle {
 
+	export class DesktopBackground {
+	    image: string;
+	    color: string;
+
+	    static createFrom(source: any = {}) {
+	        return new DesktopBackground(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.image = source["image"];
+	        this.color = source["color"];
+	    }
+	}
 	export class SubtitleFrame {
 	    key: string;
 	    source: string;

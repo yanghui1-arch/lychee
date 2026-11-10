@@ -87,7 +87,7 @@ export function ListeningSourceLabel({
   return (
     <span
       ref={viewport}
-      className="[grid-column:2] block min-w-0 overflow-hidden whitespace-nowrap"
+      className="block min-w-0 overflow-hidden whitespace-nowrap"
       title={`正在监听 ${label}`}
       onPointerEnter={() => {
         const current = animation.current
