@@ -62,17 +62,6 @@ export function WorkspaceHeader() {
             "[&:not([aria-selected='true']):hover]:text-[color:var(--tabs-text-active)]",
             "[&[aria-selected='true']]:text-[color:var(--tabs-text-active)] [@media(prefers-reduced-motion:reduce)]:[transition:none]!",
           )}
-          value="translate"
-        >
-          文译
-        </TabsTrigger>
-        <TabsTrigger
-          className={cn(
-            'relative appearance-none border-0 bg-transparent h-[30px] py-1 px-3 text-[color:var(--tabs-text-muted)] cursor-pointer',
-            'rounded-[48px] z-[1] [transition:color_var(--tabs-dur)_var(--tabs-ease)]',
-            "[&:not([aria-selected='true']):hover]:text-[color:var(--tabs-text-active)]",
-            "[&[aria-selected='true']]:text-[color:var(--tabs-text-active)] [@media(prefers-reduced-motion:reduce)]:[transition:none]!",
-          )}
           value="interpret"
         >
           同传
@@ -87,6 +76,17 @@ export function WorkspaceHeader() {
           value="subtitle"
         >
           字幕
+        </TabsTrigger>
+        <TabsTrigger
+          className={cn(
+            'relative appearance-none border-0 bg-transparent h-[30px] py-1 px-3 text-[color:var(--tabs-text-muted)] cursor-pointer',
+            'rounded-[48px] z-[1] [transition:color_var(--tabs-dur)_var(--tabs-ease)]',
+            "[&:not([aria-selected='true']):hover]:text-[color:var(--tabs-text-active)]",
+            "[&[aria-selected='true']]:text-[color:var(--tabs-text-active)] [@media(prefers-reduced-motion:reduce)]:[transition:none]!",
+          )}
+          value="translate"
+        >
+          文译
         </TabsTrigger>
         <TabsIndicator
           className={cn(
