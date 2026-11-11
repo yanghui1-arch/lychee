@@ -1,6 +1,8 @@
 # 实时桌面字幕
 
-## 运行
+实时桌面字幕将应用或全局输出声音转写并翻译为双语文字，以独立置顶窗口覆盖在桌面上。客户端负责音频采集、本地语音检测和字幕呈现，ASR 与翻译由配置的服务端完成。
+
+## 服务与凭证准备
 
 在相邻 `lychee-server` 项目中使用其现有 Docker 配置：
 
@@ -11,7 +13,7 @@ docker compose ps
 curl.exe --fail http://127.0.0.1:8000/health/ready
 ```
 
-服务器 `.env` 需已设置 MySQL、LLM 与 ASR 配置。新数据库按服务器 [开发文档](../../lychee-server/docs/development.md) 初始化，已有数据库按其文档迁移。客户端开发不需要修改服务器源码；本次也未修改它。
+服务器 `.env` 需已设置 MySQL、LLM 与 ASR 配置。新数据库按服务器 [开发文档](../../lychee-server/docs/development.md) 初始化，已有数据库按其文档迁移。客户端通过现有协议连接服务，服务端的部署与数据库迁移以服务端文档为准。
 
 服务器必须有有效登录会话和足够积分。客户端账户 UI 尚未接入，当前由本机运行环境提供登录令牌：
 
@@ -45,6 +47,40 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Start-SubtitleTest.ps1 -Refre
 
 已有客户端进程不会自动继承新环境变量；先退出，再通过该脚本启动即可。测试仍会调用已配置的真实 ASR / 翻译供应商并按服务器规则扣减测试积分。
 
+## 设置与使用
+
+打开工作区的字幕页，选择原语言、目标语言和监听来源，再开启桌面字幕。默认英文转简体中文、全局监听。尚未监听时预览显示所选语言的示例；监听后消费真实字幕帧，缺少原文时仅显示译文。切换工作区标签或隐藏窗口继续监听，关闭开关或退出应用结束监听。
+
+### 字号、样式与位置
+
+字号范围 18–40，默认 30。提供深底白字（70% 黑底）、轻雾白字（10% 底色）、浅底深字（15% 底色）、暖黄描边（无底）和暗夜轻底（20% 底色）。底色只包围文字，文字保持实色，附带描边和轻阴影，不使用模糊背景、边框或圆角。
+
+位置可选顶部、底部或自定义，自定义位置通过预览拖动或方向键微调，按百分比保存。桌面显示区域取开启时主窗口所在显示器的工作区，考虑 DPI 并避开任务栏。样式、字号和位置即时生效；语言和来源变化会切换语音处理会话。设置持久化规则见[外观与本地设置](settings.md)。
+
+西文使用打包的 Roboto Medium 500，预览与原生窗口共用 TTF，原生字体仅加载到当前进程，不安装到系统。中文、日文、韩文分别使用 Microsoft YaHei UI、Yu Gothic UI、Malgun Gothic，缺失时系统回退。原生文字按两倍分辨率绘制再缩小。预览背景读取桌面壁纸或纯色，聚焦窗口时刷新并缓存；失败使用打包图片。
+
+实现：[SubtitleWorkspace.tsx](../frontend/src/features/subtitle/SubtitleWorkspace.tsx)、[model.ts](../frontend/src/features/subtitle/model.ts)、[useDesktopBackground.ts](../frontend/src/features/subtitle/useDesktopBackground.ts)、[subtitle_font_windows.go](../internal/subtitle/subtitle_font_windows.go)、[subtitle_wallpaper_windows.go](../internal/subtitle/subtitle_wallpaper_windows.go)。
+
+## 音频来源与监听生命周期
+
+### 全局与单应用
+
+全局监听通过 WASAPI loopback 采集默认输出设备的混合声音。单应用通过进程回环采集目标进程及子进程，需要 Windows 11 或 build 20348 及以上。字幕不提供麦克风来源；浏览器按应用进程树监听，不能单独选择标签页。
+
+应用列表包含已打开桌面窗口的应用，并补充正在发声的后台应用；已停止播放的残留音频会话不能单独证明应用仍打开。页面可见时每 2 秒刷新，打开下拉或恢复窗口时也刷新。不需要先播放声音才能列出桌面应用。
+
+同一进程树合并为一项，独立同名实例以窗口标题或实例编号区分；界面不显示 PID，长标题悬停可查看。来源内部标识包含进程 ID 和创建时间，避免 PID 复用后误采其他进程。过滤系统外壳、输入、搜索、窗口宿主等辅助组件、SystemApps、系统设置和 Realtek 控制台；跳过 DWM 隐藏窗口，保留正常桌面和商店用户应用。
+
+应用图标从 EXE 动态提取为透明 32×32 PNG，通过 Wails 返回。缓存最多 128 个可执行文件，文件变化重新提取；失败显示通用图标。
+
+### 音量、停止与数据边界
+
+连接来源后显示等待声音 / 检测到声音和音量条。静音且窗口仍打开的应用保留在列表。切换来源先结束旧采集；目标进程退出后停止并提示，应用重启需重新选择。全局输出设备断开也会报错。
+
+原始 PCM 仅在 Go 内流动，不经前端、不生成录音文件。`audio:level` 仅携带音量和监听编号，`audio:status` 提供生命周期，`subtitle:frame` 同步桌面与预览。前端按监听编号过滤迟到事件。字幕原生窗口置顶、不抢焦点、鼠标穿透且不显示任务栏入口；停止监听和采集结束时清空隐藏，退出时释放资源。
+
+实现：[useAudioCapture.ts](../frontend/src/features/subtitle/useAudioCapture.ts)、[audio.go](../internal/audio/audio.go)、[audio_windows.go](../internal/audio/audio_windows.go)、[audio_apps_windows.go](../internal/audio/audio_apps_windows.go)、[audio_icons_windows.go](../internal/audio/audio_icons_windows.go)、[controller.go](../internal/audio/controller.go)。
+
 ## 音频链路
 
 1. WASAPI 监听所选应用进程树或默认输出设备，输出 16 kHz、单声道、PCM s16le。约每 200ms 复制到容量 50 块的队列，约 10 秒；超出即明确停止，避免积压导致无限延迟。
@@ -66,18 +102,48 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Start-SubtitleTest.ps1 -Refre
 
 每段使用独立服务器 session，服务端 ASR 时间从零计起，跨段不保留服务端翻译上下文。短于两帧的语音可能被视为噪声；持续背景音乐也可能被 VAD 误判，阈值与尾部长度集中在 `internal/vad/speech_vad.go`。本地采集到首个音频块约需 200ms，另有前置音频的实时发送、网络、ASR 与翻译耗时；不能将 VAD 推理耗时当成端到端延迟。
 
+## WebSocket 协议
+
+Go 从环境读取令牌，以 `Authorization: Bearer` 请求头鉴权，不把它写入 URL、前端存储或日志。未指定语音地址时，在文本地址路径末尾追加 `/speech`，将 HTTP / HTTPS 转为 WS / WSS；完整覆盖地址也接受这两种 HTTP scheme 并转换。
+
+连接握手上限 10 秒，等待 ready 上限 15 秒。客户端先发送以下消息，收到带有效 session_id 的 ready 才上传二进制 PCM：
+
+```json
+{"type":"start","source_language":"en-US","target_language":"zh-CN","sample_rate":16000,"audio_format":"pcm_s16le","channels":1}
+```
+
+音频是 16 kHz、单声道、小端 16 位整数 PCM，按 32ms 帧以实时节拍发送。自然段结束发送 `{"type":"finish"}`，等待最终翻译和 completed；取消则关闭连接。读取单条消息限制 2 MiB，每次读设置 130 秒期限，避免无限等待。
+
+| 服务事件 | 客户端作用 |
+| --- | --- |
+| ready | 确认会话已建立 |
+| transcript | 按 session_id / sentence_id 更新原文快照和定稿标记 |
+| translating | 保存 sequence 对应的源文和 sentence_ids |
+| translation_preview | 替换片段临时译文，不作为正常定稿播放 |
+| translation | 确认译文，进入按序阅读队列 |
+| completed | 确认自然结束 |
+| error | 展示错误；仅指定 ASR 修订错误可有限接续 |
+
+事件字段与错误处理以客户端 [speech_protocol.go](../internal/speech/speech_protocol.go) 为准；这份说明描述客户端消费规则，服务端新增协议仍需同步适配。
+
 ## 字幕快照与显示
 
 - `transcript` 按 `(session_id, sentence_id)` 缓存完整快照，允许临时修订与最终空文本撤销；定稿后忽略迟到修订。转写事件不直接触发显示，不单独渲染原文。
 - `translating` 保存片段源文和 `sentence_ids`；`translation_preview` 替换该 `sequence` 的完整快照，重复或回退预览不重复追加。预览只合并缓存，收到 `translation` 确认后，完整片段才进入阅读队列；同一片段不会因多次快照而重复播放。
 - 每个 `(session_id, sequence)` 对应独立的原文／译文队列项，不把整句累计快照反复入队。第一帧即同时显示可用的两种语言。优先使用该片段的 `source_text`；缺少片段源文时回退到对应句子的缓存转写，两者都没有就只渲染译文。可恢复的 ASR 修订错误将尚未确认的预览标记为未完成后保留到队列；监听结束则清空。
+### 画布、字体与底色
+
 - 画布固定为 **1000 × 240 逻辑像素**，按 DPI 缩放；窄屏按显示器工作区约束宽度。宽高不依赖文字长度、字号或有无原文。预览固定为桌面画布的 0.46 倍，原文和译文各最多一行，只有译文时居中，不为缺失原文保留空行。接收时将服务器换行、制表符等空白规范为空格，避免意外换行。
 - 固定画布的空白部分完全透明。每种语言的可见底色只包围实际字形，水平留白约 0.36 倍字号、垂直留白约 0.16 倍字号；描边和柔和字影也随字号及 DPI 缩放。两块底色重叠时不叠加变黑，空文本不绘制底色。设置页采用同样的字体相对留白，不再把整块固定画布涂黑。
+### 阅读队列、速度与分页
+
 - 阅读队列与接收队列独立。接收端保存完整文本，不截取尾部；显示端从头分页，当前片段完整显示后即可推进文本游标，已读前文作为可见上下文保留。后来的片段不能覆盖前页，队列积压不会导致加速或跳字，也没有 10 秒过期清除未读内容的规则。
 - 单行容量完全由实际显示器、DPI、字体和可用宽度决定，不再用固定字数或半行预算预切片。默认每秒 12 个阅读单位：一个 CJK 字形约 1 单位、拉丁字母约 0.4 单位，即约中文 12 字／秒、英文 30 字母／秒。显示节拍为 40ms，每个片段至少完整呈现一帧，避免末字未显示就推进。原文和译文同步换页。当前行无法追加后续时，完整呈现后停留 600ms，再整体替换为下一页；同一行能放下的片段没有额外停顿。没有后续时保留 2 秒，新内容到达后按实际能否续接处理，不必等待 2 秒结束。UI 阻塞或电脑休眠不会让不可见的时间消耗未读内容。
 - 单行接续：后续已定稿片段按接收顺序追加，不要求同一 WebSocket 会话、连续 sequence 或前文很短。整个可见帧按原生单行宽度测量，只有两种语言均能完整放下时才接续；不能裁去已显示前缀来腾出空间，也不把旧行尾部带到新页。同一行接续保留显示 key，只为新增后缀启动吐字计时。换页使用新 key，清掉旧行并重新呈现。下一页布局在换页停留开始时计算并缓存，字体重排和静音会取消这份缓存。缺失原文状态变化和未完成片段重新建立独立显示，避免错接双语。静音仅保留当前显示片段的阅读时间；手动停止、切换来源和退出直接清空。
 - 分页优先选择空白和标点边界，并保留 Unicode 字素（组合重音、emoji、肤色和 ZWJ 序列不拆开）。服务端没有词级对齐信息，长句双语按剩余长度比例分页；一侧较短时保留上一页的短侧文本作上下文，不伪造词级对应。分页结果必须完整放入行区，不能再次静默裁成尾部；字体或显示区域变化时，重新排版当前未读页，不推进游标。
 - 接收速度长期高于阅读速度时，阅读延迟自然累积，预览标签显示预计待阅读时间。已定稿文本缓冲超过约 4 MiB 后明确停止监听；持续播放期间不靠丢字或赶播压缩延迟。持续静音或结束监听属于播放生命周期结束，会主动丢弃旧缓冲，重新开启也不保留未读队列。缓冲仅在内存中保存。
+### 同步与停止边界
+
 - 预览与原生窗口消费同一显示帧；切换工作区、最小化主窗口继续监听。语言变化先完成旧会话再使用新语言建立连接；样式、位置和字号即时生效。
 - 预览不是结算确认。可恢复的 ASR 错误中，未定稿部分标记为「译文未完成」；真正停止监听时清空。取消旧连接不代表已发送请求一定没有结算。不生成本地音频文件。
 
@@ -99,7 +165,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Start-SubtitleTest.ps1 -Refre
 | `internal/subtitle/subtitle.go`、`internal/subtitle/subtitle_*windows.go` | 显示节拍与原生窗口位图、淡入、位置和字体 |
 | `frontend/src/features/subtitle/` | 设置页、实时预览、音量与错误提示 |
 
-## 检查与本次验证
+## 检查与验证范围
 
 ```powershell
 bun run --cwd frontend typecheck
@@ -118,6 +184,6 @@ wails build
 
 静音回归覆盖短暂停顿保留、低音量持续播放重置宽限、静音时丢弃积压和预览但保留当前片段的完整阅读时间、旧连接取消、空闲期间不反复初始化、恢复后新旧结果隔离、手动停止时拒绝迟到尾部结果，以及取消与恢复交错时旧批次不能重新启用。
 
-可选真实语音推理验证：将 16 kHz 单声道 PCM s16le WAV 文件路径设为 `LYCHEE_SPEECH_TEST_WAV`，运行 `go test -v -run TestSileroBundledModelInference -count=1 ./internal/vad`。本次用 Windows SpeechSynthesizer 生成英文语音，实际加载打包模型，检测到 245 帧语音；静音输入未达到语音阈值。该音频只用于测试，未加入仓库。
+可选真实语音推理验证：将 16 kHz 单声道 PCM s16le WAV 文件路径设为 `LYCHEE_SPEECH_TEST_WAV`，运行 `go test -v -run TestSileroBundledModelInference -count=1 ./internal/vad`。测试会实际加载打包模型，对指定音频进行推理；未设置该变量时不代表已经验证真实语音识别或翻译。
 
-相邻服务器已通过原 Docker 配置构建、启动，`/health/ready` 正常。后续本机手测准备使用服务器已有的 Alembic 迁移初始化了空开发库，并通过测试启动脚本创建专用账号与 24 小时会话；`/v1/users/me` 已验证凭证有效，初始测试余额为 16,500。完整 ASR 和翻译的自动验证仍使用模拟 WebSocket，尚未进行带积分结算的真实模型端到端联调。模型来源、固定版本、授权和哈希见 [models/README.md](../models/README.md)。
+自动化协议验证使用模拟 WebSocket，不代表已完成真实供应商的端到端识别、翻译与积分结算验证。真实联调需使用有效凭证并确认服务端配置。模型来源、固定版本、授权和哈希见 [models/README.md](../models/README.md)。
