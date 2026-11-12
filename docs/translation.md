@@ -31,7 +31,7 @@
 
 成功响应读取字符串字段 `translated_text`。服务错误、格式错误及网络失败由请求适配层转换为界面消息。桌面版由 Go 反向代理请求上游，保留配置地址的路由和查询参数；只接受 `/api/translate` 的 POST，其他路径返回 404，其他方法返回 405。代理超时 30 秒，上游不可达返回 502，超时返回 504。开发服务使用 Vite 代理同一路径。
 
-地址通过 `LYCHEE_TRANSLATE_URL` 或打包默认值配置，具体命令见[README 配置](../README.md#配置)。语音令牌的注入位于语音链路，文本代理未实现同样的主动 Bearer 注入。
+地址通过 `LYCHEE_TRANSLATE_URL` 或打包默认值配置，具体命令见[README 配置](../README.md#配置)。Go 代理从 `LYCHEE_ACCESS_TOKEN` 读取登录令牌并注入 `Authorization: Bearer`，与字幕共用同一登录会话；每次请求缺少 `Idempotency-Key` 时生成 UUID 以满足服务端接口要求，已有请求 ID 则保留；令牌不进入前端或 URL。本机开发可运行 `powershell -ExecutionPolicy Bypass -File scripts/Start-SubtitleTest.ps1`，复用 `local-subtitle-test` 测试账户并启动客户端。
 
 实现：[translation-api.ts](../frontend/src/features/translator/translation-api.ts)、[translation.go](../internal/translation/translation.go)、[vite.config.ts](../frontend/vite.config.ts)。
 

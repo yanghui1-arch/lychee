@@ -18,12 +18,20 @@ export function IsWorkspace() {
   return window['go']['app']['WindowService']['IsWorkspace']();
 }
 
+export function LogScreenshotEvent(arg1) {
+  return window['go']['app']['WindowService']['LogScreenshotEvent'](arg1);
+}
+
 export function OpenWorkspace() {
   return window['go']['app']['WindowService']['OpenWorkspace']();
 }
 
-export function PinScreenshot(arg1, arg2) {
-  return window['go']['app']['WindowService']['PinScreenshot'](arg1, arg2);
+export function PinScreenshot(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['WindowService']['PinScreenshot'](arg1, arg2, arg3, arg4);
+}
+
+export function RecognizeScreenshot(arg1, arg2) {
+  return window['go']['app']['WindowService']['RecognizeScreenshot'](arg1, arg2);
 }
 
 export function RequestClose() {

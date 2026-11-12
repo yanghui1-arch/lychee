@@ -294,3 +294,21 @@
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
+
+.screenshot-overflow {
+  max-width: min(560px, 90vw);
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 12px;
+  background: #27272a;
+  color: #f4f4f5;
+  font-size: 13px;
+  user-select: text;
+  white-space: pre-wrap;
+}
+.screenshot-overflow summary {
+  cursor: pointer;
+}
+.screenshot-overflow p {
+  margin: 8px 0;
+}

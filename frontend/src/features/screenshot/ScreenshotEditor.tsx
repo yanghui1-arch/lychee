@@ -1,3 +1,9 @@
+import { translate } from '../translator/translation-api'
+import {
+  paintTranslation,
+  translateRegions,
+  type OCRRegion,
+} from './translation'
 import {
   useEffect,
   useLayoutEffect,
@@ -21,6 +27,8 @@ import {
   Crop,
 } from 'lucide-react'
 import {
+  RecognizeScreenshot,
+  LogScreenshotEvent,
   CancelScreenshot,
   PinScreenshot,
   SaveScreenshot,
@@ -63,6 +71,12 @@ const tools = [
   { id: 'text', label: '文字', icon: Type },
 ] as const
 export function ScreenshotEditor({ initial }: { initial: Frame }) {
+  const [overflowTranslations, setOverflowTranslations] = useState<string[]>([])
+  const [translatedImage, setTranslatedImage] = useState<string | null>(null)
+  const [selectionLocked, setSelectionLocked] = useState(false)
+  const lockedSelection = useRef<Rect | null>(null)
+  const translationAbort = useRef<AbortController | null>(null)
+  useEffect(() => () => translationAbort.current?.abort(), [])
   const [frame] = useState(initial),
     [selection, setSelection] = useState<Rect | null>(
       initial.workArea ?? {
@@ -114,7 +128,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     ? active.type === 'rectangle' || active.type === 'ellipse'
       ? active
       : null
-    : cropSelected
+    : cropSelected && !selectionLocked
       ? selection
       : null
   const exporting = useRef(false)
@@ -150,9 +164,9 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     refreshHistory((n) => n + 1)
   }
   function restore(edit: EditSnapshot) {
-    setSelection(edit.selection)
+    setSelection(lockedSelection.current ?? edit.selection)
     setAnnotations(edit.annotations)
-    setReady(edit.ready)
+    setReady(lockedSelection.current ? true : edit.ready)
     setSelected((current) =>
       edit.annotations.some((a) => a.id === current) ? current : null,
     )
@@ -204,7 +218,13 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
   }, [])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (busy) return
+      if (busy) {
+        if (e.key === 'Escape') {
+          translationAbort.current?.abort()
+          void CancelScreenshot()
+        }
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
         if (pinned) void CancelScreenshot()
@@ -255,7 +275,171 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     scrolling,
     scrollRegion,
     scrollPreview,
+    translatedImage,
   ])
+  async function translateScreenshot() {
+    if (busy || !selection || scrollRegion) return
+    if (translatedImage) {
+      setTranslatedImage(null)
+      setOverflowTranslations([])
+      setMessage('已恢复原图')
+      return
+    }
+    lockedSelection.current = { ...selection }
+    setSelectionLocked(true)
+    setCropSelected(false)
+    drag.current = null
+    setInteracting(false)
+    setBusy(true)
+    setMessage('正在识别文字…')
+    const controller = new AbortController()
+    translationAbort.current = controller
+    const session = crypto.randomUUID()
+    const started = performance.now()
+    let count = 0,
+      done = 0,
+      painted = 0,
+      failures = 0,
+      outcome = 'success'
+    const log = (event: string, fields: Record<string, unknown> = {}) => {
+      void LogScreenshotEvent({
+        session,
+        event,
+        duration_ms: performance.now() - started,
+        ...fields,
+      } as Parameters<typeof LogScreenshotEvent>[0]).catch(() => {})
+    }
+    setOverflowTranslations([])
+    log('screenshot_translation_start')
+    try {
+      // Use the same integer pixel grid for OCR, cleanup masks and redraw.
+      const area = {
+        x: Math.round(selection.x),
+        y: Math.round(selection.y),
+        width: Math.round(selection.width),
+        height: Math.round(selection.height),
+      }
+      const crop = await exportScreenshot(frame, area, [])
+      const regions: OCRRegion[] = await RecognizeScreenshot(crop, session)
+      if (controller.signal.aborted) return
+      count = regions.length
+      if (!regions.length) {
+        outcome = 'no_text'
+        setMessage('未识别到文字')
+        return
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = frame.width
+      canvas.height = frame.height
+      const ctx = canvas.getContext('2d')!
+      const image = new Image()
+      image.src = frame.image
+      await image.decode()
+      ctx.drawImage(image, 0, 0)
+      const progress = () =>
+        setMessage(`翻译 ${done}/${regions.length}，失败 ${failures}`)
+      progress()
+      await translateRegions(
+        regions,
+        async (region) => {
+          const regionIndex = regions.indexOf(region)
+          const regionStarted = performance.now()
+          try {
+            const result = await translate(
+              {
+                text: region.text,
+                source_language: 'auto',
+                target_language: 'zh-CN',
+              },
+              controller.signal,
+            )
+            log('translation_region', {
+              region: regionIndex,
+              duration_ms: performance.now() - regionStarted,
+              outcome: result.trim() ? 'success' : 'empty_result',
+              text: region.text,
+              result,
+            })
+            return result
+          } catch (error) {
+            log('translation_region', {
+              region: regionIndex,
+              duration_ms: performance.now() - regionStarted,
+              outcome: controller.signal.aborted ? 'cancelled' : 'error',
+              text: region.text,
+              details: String(error),
+            })
+            throw error
+          }
+        },
+        (region, result) => {
+          if (controller.signal.aborted) return
+          const rendered = paintTranslation(
+            ctx,
+            { ...region, x: region.x + area.x, y: region.y + area.y },
+            result,
+            {
+              bounds: area,
+              obstacles: regions
+                .flatMap((r) =>
+                  r.boxes?.length
+                    ? r.boxes.map((box) => ({
+                        ...box,
+                        x: r.x + box.x,
+                        y: r.y + box.y,
+                      }))
+                    : [r],
+                )
+                .map((box) => ({
+                  ...box,
+                  x: box.x + area.x,
+                  y: box.y + area.y,
+                })),
+            },
+          )
+          log('translation_render', {
+            region: regions.indexOf(region),
+            outcome: rendered.reason,
+            metrics: {
+              font_size_px: rendered.fontSize,
+              ink_height_px: rendered.inkHeight,
+              line_height_px: rendered.lineHeight,
+              rendered_lines: rendered.lines,
+              available_width_px: rendered.availableWidth,
+              text_characters: rendered.textCharacters,
+              placed_characters: rendered.placedCharacters,
+            },
+          })
+          if (!rendered.fits)
+            setOverflowTranslations((previous) => [...previous, result])
+          setTranslatedImage(canvas.toDataURL('image/png'))
+          done++
+          if (rendered.fits && ++painted === 1) log('first_region_painted')
+          progress()
+        },
+        () => {
+          failures++
+          progress()
+        },
+      )
+    } catch (error) {
+      outcome = 'error'
+      log('screenshot_translation_error', { outcome, details: String(error) })
+      setMessage(String(error))
+    } finally {
+      log('screenshot_translation_complete', {
+        regions: count,
+        completed: done,
+        failed: failures,
+        outcome: controller.signal.aborted
+          ? 'cancelled'
+          : failures
+            ? 'partial_failure'
+            : outcome,
+      })
+      if (!controller.signal.aborted) setBusy(false)
+    }
+  }
   function point(e: PointerEvent) {
     const r = stage.current!.getBoundingClientRect()
     return {
@@ -266,7 +450,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
   function updateRect(r: Rect, id?: number) {
     if (id !== undefined)
       setAnnotations((a) => a.map((x) => (x.id === id ? { ...x, ...r } : x)))
-    else setSelection(r)
+    else if (!lockedSelection.current) setSelection(r)
   }
   function toolSettings(id: Tool) {
     return (
@@ -326,6 +510,8 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
       setText({ x: p.x, y: p.y, value: '' })
       return
     }
+    if (lockedSelection.current && tool === 'select' && !active) return
+    if (lockedSelection.current && tool === 'select' && !corner) return
     e.currentTarget.setPointerCapture(e.pointerId)
     setInteracting(true)
     if (corner && bound) {
@@ -394,7 +580,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
     const d = drag.current
     drag.current = null
     setInteracting(false)
-    if (!d) return
+    if (!d || (lockedSelection.current && d.id === undefined)) return
     if (d.kind === 'new') {
       setCropSelected(false)
       if (!selection || selection.width < 8 || selection.height < 8)
@@ -418,7 +604,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
   }
   function move(e: PointerEvent<HTMLDivElement>) {
     const d = drag.current
-    if (!d) return
+    if (!d || (lockedSelection.current && d.id === undefined)) return
     const p = point(e)
     if (d.kind === 'new' || d.kind === 'draw') {
       const r = normalized(d.startX, d.startY, p.x, p.y)
@@ -578,7 +764,10 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
         stopped = true
         setScrollPreview(complete)
       }
-      const targetFrame = scrollRegion && complete ? complete : frame
+      const targetFrame =
+        scrollRegion && complete
+          ? complete
+          : { ...frame, image: translatedImage ?? frame.image }
       const targetSelection =
         scrollRegion && complete
           ? {
@@ -605,7 +794,10 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
       if (action === 'copy') {
         await CopyScreenshot(image)
       } else if (action === 'pin') {
+        const anchor = scrollRegion ?? selection
         await PinScreenshot(
+          Math.round(anchor.x),
+          Math.round(anchor.y),
           Math.round(targetSelection.width),
           Math.round(targetSelection.height),
         )
@@ -649,6 +841,11 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
   }, [scrolling, scrollRegion])
 
   async function scroll() {
+    if (lockedSelection.current) return
+    if (translatedImage) {
+      setMessage('请先恢复原图再滚动截图')
+      return
+    }
     if (!selection || busy || scrollRegion) return
     const r = selection
     // Keep the native hole free of all preview UI, even at the screen edge.
@@ -778,7 +975,11 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
           setInteracting(false)
         }}
       >
-        <img src={frame.image} draggable={false} alt="屏幕截图" />
+        <img
+          src={translatedImage ?? frame.image}
+          draggable={false}
+          alt="屏幕截图"
+        />
         <svg
           viewBox={`0 0 ${frame.width} ${frame.height}`}
           className="screenshot-art"
@@ -1030,9 +1231,10 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
             </button>
             <button
               aria-label="重新选择区域"
-              title="重新框选"
-              disabled={busy || !!scrollRegion}
+              title={selectionLocked ? '翻译后区域已锁定' : '重新框选'}
+              disabled={busy || !!scrollRegion || selectionLocked}
               onClick={() => {
+                if (lockedSelection.current) return
                 remember()
                 setReady(false)
                 setSelection(
@@ -1061,9 +1263,10 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
               <Pin size={16} strokeWidth={1.5} />
             </button>
             <button
-              aria-label="翻译（即将上线）"
-              title="翻译 · 暂未开放"
-              disabled
+              aria-label="翻译截图"
+              title={translatedImage ? '恢复原图' : '翻译截图'}
+              onClick={() => void translateScreenshot()}
+              disabled={busy || !!scrollRegion}
             >
               <Languages size={16} strokeWidth={1.5} />
             </button>
@@ -1072,7 +1275,7 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
               title="滚动截图 · 手动滚动并实时拼接"
               aria-pressed={!!scrollRegion}
               className={scrollRegion ? 'active' : ''}
-              disabled={busy || !!scrollRegion}
+              disabled={busy || !!scrollRegion || selectionLocked}
               onClick={() => void scroll()}
             >
               <ScanLine size={16} strokeWidth={1.5} />
@@ -1172,9 +1375,23 @@ export function ScreenshotEditor({ initial }: { initial: Frame }) {
               )}
             </div>
           )}
+          {overflowTranslations.length > 0 && (
+            <details
+              className="screenshot-overflow"
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <summary>
+                有 {overflowTranslations.length}{' '}
+                段译文超出可用空间，已保留原图，展开查看完整译文
+              </summary>
+              {overflowTranslations.map((result, index) => (
+                <p key={index}>{result}</p>
+              ))}
+            </details>
+          )}
           {(busy || message) && (
             <div className="screenshot-feedback" role="status">
-              {busy ? '处理中…' : message}
+              {message || (busy ? '处理中…' : '')}
             </div>
           )}
         </div>

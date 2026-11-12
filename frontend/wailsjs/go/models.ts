@@ -63,6 +63,136 @@ export namespace audio {
 
 }
 
+export namespace diagnostics {
+
+	export class ScreenshotEvent {
+	    session: string;
+	    event: string;
+	    duration_ms: number;
+	    region: number;
+	    regions?: number;
+	    completed?: number;
+	    failed?: number;
+	    outcome?: string;
+	    stages_ms?: Record<string, number>;
+	    text?: string;
+	    result?: string;
+	    details?: any;
+	    metrics?: Record<string, number>;
+	    layout?: any[];
+	    groups?: any[];
+
+	    static createFrom(source: any = {}) {
+	        return new ScreenshotEvent(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.session = source["session"];
+	        this.event = source["event"];
+	        this.duration_ms = source["duration_ms"];
+	        this.region = source["region"];
+	        this.regions = source["regions"];
+	        this.completed = source["completed"];
+	        this.failed = source["failed"];
+	        this.outcome = source["outcome"];
+	        this.stages_ms = source["stages_ms"];
+	        this.text = source["text"];
+	        this.result = source["result"];
+	        this.details = source["details"];
+	        this.metrics = source["metrics"];
+	        this.layout = source["layout"];
+	        this.groups = source["groups"];
+	    }
+	}
+
+}
+
+export namespace ocr {
+
+	export class Box {
+	    x: number;
+	    y: number;
+	    width: number;
+	    height: number;
+
+	    static createFrom(source: any = {}) {
+	        return new Box(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	    }
+	}
+	export class EraseRun {
+	    x: number;
+	    y: number;
+	    width: number;
+	    color: number[];
+
+	    static createFrom(source: any = {}) {
+	        return new EraseRun(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.width = source["width"];
+	        this.color = source["color"];
+	    }
+	}
+	export class Region {
+	    erase: EraseRun[];
+	    text: string;
+	    score: number;
+	    x: number;
+	    y: number;
+	    width: number;
+	    height: number;
+	    boxes?: Box[];
+
+	    static createFrom(source: any = {}) {
+	        return new Region(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.erase = this.convertValues(source["erase"], EraseRun);
+	        this.text = source["text"];
+	        this.score = source["score"];
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.boxes = this.convertValues(source["boxes"], Box);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace screenshot {
 
 	export class ScreenshotRect {

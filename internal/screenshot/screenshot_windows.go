@@ -146,14 +146,15 @@ func (s *Service) CancelScreenshot() error {
 	}
 	return nil
 }
-func (s *Service) PinScreenshot(width, height int) error {
+func (s *Service) PinScreenshot(x, y, width, height int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.capture == nil {
 		return errors.New("没有正在编辑的截图")
 	}
-	if width < 1 || height < 1 || width > 32768 || height > 32768 {
-		return errors.New("截图大小无效")
+	bounds, err := pinnedBounds(s.capture.display, x, y, width, height)
+	if err != nil {
+		return err
 	}
 	if s.capture.overlaySet {
 		if err := s.clearScrollOverlay(); err != nil {
@@ -165,14 +166,13 @@ func (s *Service) PinScreenshot(width, height int) error {
 			}
 			s.capture.excluded = false
 		}
-		s.capture.pinned = true
 	}
-	// A pinned picture remains movable and always on top, with no taskbar entry.
-	d := s.capture.display
-	w, h := min(width, d.Dx()-80), min(height, d.Dy()-80)
-	scale := min(float64(w)/float64(width), float64(h)/float64(height))
-	w, h = int(float64(width)*scale), int(float64(height)*scale)
-	return s.placeWindow(image.Rect(d.Min.X+40, d.Min.Y+40, d.Min.X+40+max(120, w), d.Min.Y+40+max(80, h)))
+	// Keep the selected image at its original desktop position.
+	if err := s.placeWindow(bounds); err != nil {
+		return err
+	}
+	s.capture.pinned = true
+	return nil
 }
 func (s *Service) SaveScreenshot(data string) (string, error) {
 	if len(data) > 120*1024*1024 {

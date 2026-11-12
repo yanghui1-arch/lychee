@@ -8,7 +8,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Set with -ldflags "-X github.com/yanghui1-arch/lychee/internal/translation.translationEndpoint=https://example.com/v1/translate".
@@ -32,6 +35,12 @@ func NewHandler(endpoint string) (http.Handler, error) {
 			request.Out.URL.Path = target.Path
 			request.Out.URL.RawPath = target.RawPath
 			request.Out.URL.RawQuery = target.RawQuery
+			if request.Out.Header.Get("Idempotency-Key") == "" {
+				request.Out.Header.Set("Idempotency-Key", uuid.NewString())
+			}
+			if token := strings.TrimSpace(os.Getenv("LYCHEE_ACCESS_TOKEN")); token != "" {
+				request.Out.Header.Set("Authorization", "Bearer "+token)
+			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			status := http.StatusBadGateway
