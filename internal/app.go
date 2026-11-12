@@ -14,6 +14,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/yanghui1-arch/lychee/internal/audio"
+	"github.com/yanghui1-arch/lychee/internal/ocr"
 	"github.com/yanghui1-arch/lychee/internal/speech"
 	"github.com/yanghui1-arch/lychee/internal/subtitle"
 	"github.com/yanghui1-arch/lychee/internal/translation"
@@ -51,6 +52,9 @@ func Run(assets fs.FS) error {
 		Bind:          []interface{}{audio.AudioService, subtitles.SubtitleService, window},
 		OnBeforeClose: window.beforeClose,
 		OnStartup: func(ctx context.Context) {
+			if !window.workspace {
+				go ocr.Warmup()
+			}
 			window.mu.Lock()
 			window.ctx = ctx
 			window.mu.Unlock()
@@ -68,6 +72,7 @@ func Run(assets fs.FS) error {
 			subtitles.Start(presentationContext, emit)
 		},
 		OnShutdown: func(context.Context) {
+			ocr.Close()
 			if stopScreenshotHotkey != nil {
 				stopScreenshotHotkey()
 			}

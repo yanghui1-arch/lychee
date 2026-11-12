@@ -30,14 +30,21 @@
       window.go = {
         app: {
           WindowService: {
+            RecognizeScreenshot: async () => {
+              calls.push('ocr')
+              if (window.ocrPending) await new Promise(resolve => { window.finishOCR = resolve })
+              if (window.ocrFailure) throw Error('OCR fixture failure')
+              return window.ocrRegions ?? []
+            },
+            LogScreenshotEvent: async () => {},
             ScreenshotReady: async () => {
               calls.push('ready')
             },
             CancelScreenshot: async () => {
               calls.push('cancel')
             },
-            PinScreenshot: async (w, h) => {
-              calls.push(['pin', w, h])
+            PinScreenshot: async (x, y, w, h) => {
+              calls.push(['pin', x, y, w, h])
             },
             CopyScreenshot: async (data) => {
               if (window.failCopy) throw Error('clipboard busy')

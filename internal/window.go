@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/yanghui1-arch/lychee/internal/diagnostics"
+	"github.com/yanghui1-arch/lychee/internal/ocr"
 	"github.com/yanghui1-arch/lychee/internal/screenshot"
 )
 
@@ -24,6 +26,7 @@ const (
 
 // WindowService keeps the floating ball separate from the reusable workspace.
 type WindowService struct {
+	ocrCancel            context.CancelFunc
 	screenshot           *screenshot.Service
 	ctx                  context.Context
 	mu                   sync.Mutex
@@ -34,6 +37,22 @@ type WindowService struct {
 	hoverRevision        int
 	quitAllowed          atomic.Bool
 	floatingPositionPath string
+}
+
+func (s *WindowService) LogScreenshotEvent(event diagnostics.ScreenshotEvent) {
+	diagnostics.Record(event)
+}
+
+func (s *WindowService) RecognizeScreenshot(data, session string) ([]ocr.Region, error) {
+	s.mu.Lock()
+	if s.ocrCancel != nil {
+		s.ocrCancel()
+	}
+	ctx, cancel := context.WithCancel(s.ctx)
+	s.ocrCancel = cancel
+	s.mu.Unlock()
+	defer cancel()
+	return ocr.RecognizeSession(ctx, data, session)
 }
 
 func (s *WindowService) showExisting() {
@@ -113,14 +132,22 @@ func (s *WindowService) BeginScreenshot() error {
 	}
 	return s.screenshot.BeginScreenshot()
 }
-func (s *WindowService) CancelScreenshot() error          { return s.screenshot.CancelScreenshot() }
+func (s *WindowService) CancelScreenshot() error {
+	s.mu.Lock()
+	if s.ocrCancel != nil {
+		s.ocrCancel()
+		s.ocrCancel = nil
+	}
+	s.mu.Unlock()
+	return s.screenshot.CancelScreenshot()
+}
 func (s *WindowService) ScreenshotReady()                 { s.screenshot.ScreenshotReady() }
 func (s *WindowService) CopyScreenshot(data string) error { return s.screenshot.CopyScreenshot(data) }
 func (s *WindowService) SaveScreenshot(data string) (string, error) {
 	return s.screenshot.SaveScreenshot(data)
 }
-func (s *WindowService) PinScreenshot(width, height int) error {
-	return s.screenshot.PinScreenshot(width, height)
+func (s *WindowService) PinScreenshot(x, y, width, height int) error {
+	return s.screenshot.PinScreenshot(x, y, width, height)
 }
 func (s *WindowService) ScrollScreenshot(x, y, width, height int) (screenshot.ScreenshotFrame, error) {
 	return s.screenshot.ScrollScreenshot(x, y, width, height)

@@ -12,7 +12,8 @@ param(
     [string]$ApiBaseUrl = 'http://127.0.0.1:8000',
     [ValidateRange(1, 48)][int]$Hours = 24,
     [switch]$RefreshToken,
-    [switch]$NoLaunch
+    [switch]$NoLaunch,
+    [switch]$ScreenshotDebug
 )
 
 $ErrorActionPreference = 'Stop'
@@ -133,6 +134,7 @@ except Exception as error:
 # runs, and explicitly set this process before launching the executable.
 [Environment]::SetEnvironmentVariable('LYCHEE_ACCESS_TOKEN', $token, 'User')
 $env:LYCHEE_ACCESS_TOKEN = $token
+if ($ScreenshotDebug) { $env:LYCHEE_SCREENSHOT_DEBUG = '1' }
 $env:LYCHEE_SPEECH_URL = ($baseUrl -replace '^http', 'ws') + '/v1/translate/speech'
 Write-Host "Test account ready: user_id=$($profile.user_id), credits=$($profile.credits)"
 if ($expiresAt) { Write-Host "Session expires: $($expiresAt.ToString('yyyy-MM-dd HH:mm zzz'))" }

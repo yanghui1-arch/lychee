@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | `LYCHEE_TRANSLATE_URL` | `http://127.0.0.1:8000/v1/translate` | 文本翻译的完整 HTTP(S) 地址，包含路由 |
 | `LYCHEE_SPEECH_URL` | 从文本地址派生，默认 `ws://127.0.0.1:8000/v1/translate/speech` | 字幕语音服务的完整 WS(S) 地址 |
-| `LYCHEE_ACCESS_TOKEN` | 无 | 字幕连接所需的有效登录令牌 |
+| `LYCHEE_ACCESS_TOKEN` | 无 | 文本、截图翻译及字幕连接所需的有效登录令牌 |
 
 ```powershell
 $env:LYCHEE_TRANSLATE_URL = 'http://127.0.0.1:8000/v1/translate'

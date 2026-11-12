@@ -151,6 +151,9 @@ activemq-data/
 .env
 .envrc
 .venv
+.venv-ocr/
+/build/ocr-wheels/
+/build/ocr-smoke.png
 env/
 venv/
 ENV/
@@ -225,3 +228,5 @@ node_modules/
 # Frontend source helpers are not build libraries.
 !frontend/src/lib/
 !frontend/src/lib/*.ts
+
+/build/ocr-cleanup-check.png
